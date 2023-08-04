@@ -13,12 +13,7 @@ TOKEN = os.getenv('TELEGRAM_TOKEN')
 my_id = os.getenv('TELEGRAM_MY_ID')
 bot = telebot.TeleBot(TOKEN)
 database = "main.db"
-bot_commands = [
-    '/commands',
-    '/create_task',
-    '/list_tasks',
-    '/task_completed'
-]
+
 
 def create_db():
     with sq.connect(database) as con:
@@ -31,20 +26,14 @@ def create_db():
             )""")
 
 
-@bot.message_handler(commands=['start'])
+@bot.message_handler(commands=['start', 'help', 'commands'])
 def start_message(message):
-    bot.send_message(message.chat.id, 'Привет! Для создания задачи введи /create_task. Для отображения задач введи /list_tasks')
-
-
-@bot.message_handler(commands=['commands'])
-def list_commands(message):
-    for bot_command in bot_commands:
-        bot.send_message(message.chat.id, bot_command)
+    bot.send_message(message.chat.id, 'Привет! Вводи:\nДля создания задачи: /create_task.\nДля отображения задач: /list_tasks\nЕсли задача выполнена: /task_completed')
 
 
 @bot.message_handler(commands=['create_task'])
 def reminder_message(message):
-    if message.chat.id == my_id:
+    if message.chat.id == int(my_id):
         bot.send_message(message.chat.id, 'Введи текст задачи')
         bot.register_next_step_handler(message, set_task)
     else:
@@ -55,6 +44,7 @@ def set_task(message):
     with sq.connect(database) as con:
         cur = con.cursor()
         cur.execute(f"INSERT INTO tasks (id_user, task, status) VALUES ({message.chat.id}, '{message.text}', {1})")
+        bot.send_message(message.chat.id, 'Задача создана')
 
 
 @bot.message_handler(commands=['list_tasks'])
@@ -146,9 +136,10 @@ def change_task(message):
 #     bot.send_message(chat_id, 'Время получить ваше напоминание "{}"!'.format(reminder_name))
 
 
-# @bot.message_handler(func=lambda message: True)
-# def handler_all_message(message):
-#     bot.send_message(message.chat.id, 'Я не понимаю, что вы говорите. Чтобы сосздать напоминие введите /reminder')
+@bot.message_handler(func=lambda message: True)
+def handler_all_message(message):
+    bot.send_message(message.chat.id, 'Я не понимаю, что вы говорите')
+
 
 if __name__ == '__main__':
     create_db()
