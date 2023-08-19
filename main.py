@@ -1,11 +1,13 @@
-import datetime
+# import datetime
 import os
+import schedule
 import sqlite3 as sq
 import telebot
 import threading
 import time
 
 from dotenv import load_dotenv
+from pytz import timezone
 
 
 load_dotenv()
@@ -87,12 +89,11 @@ def change_task(message):
 
 @bot.message_handler(commands=['reminder'])
 def task_completed(message):
-    bot.send_message(message.chat.id, 'Введи дату и время первого напоминания (ГГГГ-ММ-ДД ЧЧ:ММ:СС)')
+    bot.send_message(message.chat.id, 'Введи дату и время первого напоминания (ЧЧ:ММ)')
     bot.register_next_step_handler(message, make_reminder)
 
 
 def make_reminder(message):
-    time_reminder = datetime.datetime.strptime(message.text, '%Y-%m-%d %H:%M:%S')
     def print_tasks():
         with sq.connect(database) as con:
             cur = con.cursor()
@@ -100,15 +101,23 @@ def make_reminder(message):
             for record in cur:
                 bot.send_message(message.chat.id, f"{record[0]}: {record[2]}")
 
-    def timer(t_reminder,):
-        t_delta = t_reminder - datetime.datetime.now()
-        time.sleep(t_delta.total_seconds())
-        reminder_delta = datetime.timedelta(days=1).total_seconds()
+    def timer(message,):
+        schedule.every().days.at(message.text, timezone('Europe/Moscow')).do(print_tasks)
         while True:
-            print_tasks()
-            time.sleep(reminder_delta)
+            schedule.run_pending()
+            time.sleep(1)
+    
+    threading.Thread(target=timer, args=(message,)).start()
 
-    threading.Thread(target=timer, args=(time_reminder,)).start()
+    # time_reminder = datetime.datetime.strptime(message.text, '%Y-%m-%d %H:%M:%S')
+    #     t_delta = t_reminder - datetime.datetime.now()
+    #     time.sleep(t_delta.total_seconds())
+    #     reminder_delta = datetime.timedelta(days=1).total_seconds()
+    #     while True:
+    #         print_tasks()
+    #         time.sleep(reminder_delta)
+
+    # threading.Thread(target=timer, args=(time_reminder,)).start()
 
 
 # @bot.message_handler(commands=['/list_completed'])
