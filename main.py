@@ -1,4 +1,3 @@
-# import datetime
 import os
 import schedule
 import sqlite3 as sq
@@ -109,38 +108,6 @@ def make_reminder(message):
     
     threading.Thread(target=timer, args=(message,)).start()
 
-    # time_reminder = datetime.datetime.strptime(message.text, '%Y-%m-%d %H:%M:%S')
-    #     t_delta = t_reminder - datetime.datetime.now()
-    #     time.sleep(t_delta.total_seconds())
-    #     reminder_delta = datetime.timedelta(days=1).total_seconds()
-    #     while True:
-    #         print_tasks()
-    #         time.sleep(reminder_delta)
-
-    # threading.Thread(target=timer, args=(time_reminder,)).start()
-
-
-# @bot.message_handler(commands=['/list_completed'])
-# def list_task(message):
-#     with sq.connect(database) as con:
-#         cur = con.cursor()
-#         cur.execute(f"SELECT * FROM tasks WHERE id_user = {message.chat.id} AND status = {1}")
-#         for record in cur:
-#             bot.send_message(message.chat.id, f"{record[0]}: {record[2]}")
-
-
-
-# def list_completed_tasks(message):
-#     print(0)
-#     with sq.connect(database) as con:
-#         cur = con.cursor()
-#         print(1)
-#         cur.execute(f"SELECT * FROM tasks WHERE status = {0}")
-#         print(2)
-#         for record in cur:
-#             bot.send_message(message.chat.id, f"{record[0]}: {record[2]}")
-
-
 # @bot.message_handler(commands=['reminder'])
 # def reminder_message(message):
 #     bot.send_message(message.chat.id, 'Введите текст напоминания')
@@ -170,7 +137,6 @@ def make_reminder(message):
 
 # def send_reminder(chat_id, reminder_name):
 #     bot.send_message(chat_id, 'Время получить ваше напоминание "{}"!'.format(reminder_name))
-
 
 @bot.message_handler(func=lambda message: True)
 def handler_all_message(message):
