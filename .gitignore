@@ -160,3 +160,8 @@ cython_debug/
 #.idea/
 
 *.db
+
+#chromedriver
+chromedriver*
+
+*.db-journal
