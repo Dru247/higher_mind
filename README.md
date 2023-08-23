@@ -9,7 +9,7 @@
 Скачиваем Chrome:<br>
 **sudo wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb**<br>
 Устанавливаем Chrome:<br>
-**sudo dpkg -i google-chrome*.deb**<br>
+sudo dpkg -i google-chrome*.deb<br>
 ---
 Фиксим/подтягиваем зависимости:<br>
 **sudo apt install -y -f**<br>
@@ -27,9 +27,10 @@
 Заносим переменные:<br>
 **TELEGRAM_TOKEN**<br>
 **TELEGRAM_MY_ID**<br>
-**EMAIL**<br>
-**EMAIL_PASSWORD**<br>
+**EMAIL_SENDER**<br>
+**EMAIL_SENDER_PASSWORD**<br>
 **EMAIL_RECIPIENT**<br>
 **SEARCH_URL**<br>
 **SEARCH**<br>
-
+**SMTP_SERVER**<br>
+**SMTP_PORT**<br>

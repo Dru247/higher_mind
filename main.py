@@ -239,10 +239,12 @@ def search(message):
     
 
     def send_email(email_data):
-        sender = os.getenv("EMAIL")
-        recipient = os.getenv("EMAIL_RECIPIENT")
+        sender = os.getenv("EMAIL_SENDER")
         password = os.getenv("EMAIL_PASSWORD")
-        server = smtplib.SMTP("smtp.rambler.ru", 587)
+        recipient = os.getenv("EMAIL_RECIPIENT")
+        smtp_server = os.getenv("SMTP_SERVER")
+        smtp_port = os.getenv("SMTP_PORT")
+        server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
         msg = MIMEText(str(email_data))
         msg["Subject"] = "Test"
