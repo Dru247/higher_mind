@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 import re
@@ -18,6 +19,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO, filename="logs.log", filemode="a",
+                    format="%(asctime)s %(levelname)s %(message)s")
 
 options = webdriver.ChromeOptions()
 
@@ -44,7 +48,8 @@ def create_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             id_user INTEGER,
             task TEXT,
-            status INTEGER
+            status INTEGER,
+            datetime DEFAULT CURRENT_TIMESTAMP
             )""")
 
 
@@ -202,7 +207,7 @@ def search_people():
                                 price_new = price_new[:-1]
                             price_new = int(price_new)
                         except Exception as _ex:
-                            print(_ex)
+                            logging.warning("Price not valid", exc_info=True)
                             price_new = 0
                         
                         val = (id_new, place, name_new, age_new, hands_new, height_new, weight_new, al, price_new)
@@ -211,10 +216,10 @@ def search_people():
                             cur.execute("INSERT INTO people VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)", val)
                         
                         except Exception as _ex:
-                            print(_ex)
+                            logging.warning("INSERT INTO people - error", exc_info=True)
 
             except Exception as _ex:
-                print(_ex)
+                logging.critical("func get_source_html - error", exc_info=True)
 
             finally:
                 driver.close()
@@ -240,7 +245,7 @@ def search(message):
 
     def send_email(email_data):
         sender = os.getenv("EMAIL_SENDER")
-        password = os.getenv("EMAIL_PASSWORD")
+        password = os.getenv("EMAIL_SENDER_PASSWORD")
         recipient = os.getenv("EMAIL_RECIPIENT")
         smtp_server = os.getenv("SMTP_SERVER")
         smtp_port = os.getenv("SMTP_PORT")
@@ -250,15 +255,19 @@ def search(message):
         msg["Subject"] = "Test"
 
         try:
-            # time.sleep(random.randint(0,3))
             server.login(sender, password)
             server.sendmail(sender, recipient, msg.as_string())
         except Exception as _ex:
-            print(f"{_ex}")
+            logging.critical("send email - error", exc_info=True)
 
     def random_output(data):
-        for result in random.sample(data, 5):
+        try:
+            random_variants = random.sample(data, 5)
+        except Exception as _ex:
+            logging.error(f"random_variants in = {data}", exc_info=True)
+        for result in random_variants:
             send_email(result)
+        bot.send_message(message.chat.id, 'Письма отправлены')
 
 
     def places_output(distance):
