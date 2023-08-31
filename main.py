@@ -4,6 +4,7 @@ import random
 import re
 import smtplib
 import schedule
+import shutil
 import sqlite3 as sq
 import telebot
 import threading
@@ -11,6 +12,8 @@ import time
 
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pytz import timezone
 from selenium import webdriver
@@ -251,23 +254,141 @@ def search(message):
         smtp_port = os.getenv("SMTP_PORT")
         server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
-        msg = MIMEText(str(email_data))
-        msg["Subject"] = "Test"
+
+        email_text = ""
+        for text in email_data:
+            email_text += f"{text}: {email_data[text]}\n"
+        message = MIMEMultipart()
+        message["Subject"] = email_data['Мт']
+        part = MIMEText(email_text)
+        message.attach(part)
+        script_dir = os.path.dirname(__file__)
+        folder = "images"
+        abs_file_path = os.path.join(script_dir, folder)
+        images = os.listdir(abs_file_path)
+        for count, image in enumerate(images):
+            message.attach(MIMEText(f'<img src="cid:image{count}">', 'html'))
+            with open(f"images/{image}", "rb") as img:
+                image_file = MIMEImage(img.read())
+                image_file.add_header("Content-ID", f"<image{count}>")
+                message.attach(image_file)
 
         try:
             server.login(sender, password)
-            server.sendmail(sender, recipient, msg.as_string())
+            server.sendmail(sender, recipient, message.as_string())
         except Exception as _ex:
             logging.critical("send email - error", exc_info=True)
+
+
+    def search_data_profile(result):
+
+        number_profile = result[0]
+        url_search = os.getenv("URL_PROFILE")
+        new_url = f"{url_search}a{number_profile}.htm"
+
+        try:
+            data = {}
+            data['Номер'] = result[0]
+            data['Мт'] = result[1]
+            data['Им'] = result[2]
+            data['Вз'] = result[3]
+            data['Гр'] = result[4]
+            data['Рс'] = result[5]
+            data['Вс'] = result[6]
+            data['Ан'] = result[7]
+            data['Цн'] = result[8]
+            driver.get(new_url)
+            time.sleep(random.randint(0,3))
+            html = driver.page_source
+            soup = BeautifulSoup(html, "lxml")
+            tel = soup.find("nobr", string=re.compile("Телефон")).find_parent("p", class_="t").find_next().find_next().find("a")
+            data['Телефон'] = tel.text
+            logging.info("Telephone number valid")
+            try:
+                time_job = tel.find_next_sibling().text
+            except:
+                time_job = None
+            data['Время работы'] = time_job
+            logging.info("Time job valid")
+            try:
+                text = soup.find("p", id="txt_top").find("i")
+                data['Описание'] = text.text
+            except:
+                pass
+            logging.info("Description valid")
+            contacts = soup.find("div", string=re.compile("Контактов"))
+            if contacts:
+                data['Контакты'] = contacts.text
+                logging.info("Contacts valid")
+                text_1 = contacts.find_parent().find_parent().find_next_sibling().find("div")
+            else:
+                text_1 = soup.find("td", string=re.compile("Выезд")).find_parent().find_next_sibling().find_next_sibling().find("div", class_="ar13")
+            try:
+                data['Доп. инфо'] = text_1.text
+            except:
+                pass
+            logging.info("Description_2 valid")
+            services = soup.find("table", class_="uslugi_block").find_all("a", class_="menu")
+            price = 0
+            for service in services:
+                result = service.find_next_sibling().find_next_sibling()
+                try:
+                    result_text = result.text
+                    if result_text == "":
+                        price = "Есть"
+                    else:
+                        price = result_text
+                except:
+                    price = "Есть"          
+                data[service.text] = price
+            add_services = soup.find_all("div", class_="success_only")
+            try:
+                for add_service in add_services:
+                    try:
+                        serv_result = add_service.text.split(":", 1)
+                        data[serv_result[0]] = serv_result[1]
+                    except:
+                        data[add_service.text] = "Есть"
+                logging.info("Services valid")
+            except:
+                logging.warning("Services not valid", exc_info=True)
+
+            
+            script_dir = os.path.dirname(__file__)
+            folder = "images"
+            abs_file_path = os.path.join(script_dir, folder)
+            try:
+                shutil.rmtree(abs_file_path)
+            except:
+                pass
+            os.mkdir(folder)
+            photos = soup.find("div", class_="highslide-gallery").find_all("img")
+            for count, photo in enumerate(photos):
+                photo_url = f"{url_search[:-1]}{photo['src']}"
+                driver.get(photo_url)
+                time.sleep(random.randint(0,3))
+                driver.save_screenshot(f"images/{count}.png")
+            return data
+
+        except Exception:
+            logging.critical("func get_source_html - error", exc_info=True)
+
 
     def random_output(data):
         try:
             random_variants = random.sample(data, 5)
         except Exception as _ex:
             logging.error(f"random_variants in = {data}", exc_info=True)
-        for result in random_variants:
-            send_email(result)
-        bot.send_message(message.chat.id, 'Письма отправлены')
+        try:
+            for result in random_variants:
+                send_email(search_data_profile(result))
+            bot.send_message(message.chat.id, 'Письма отправлены')
+        except:
+            bot.send_message(message.chat.id, 'Письма НЕ отправлены')
+            logging.error(f"sends email - error", exc_info=True)
+        # finally:
+        #     driver.close()
+        #     driver.quit()
 
 
     def places_output(distance):
