@@ -322,7 +322,10 @@ def search(message):
                 logging.info("Contacts valid")
                 text_1 = contacts.find_parent().find_parent().find_next_sibling().find("div")
             else:
-                text_1 = soup.find("td", string=re.compile("Выезд")).find_parent().find_next_sibling().find_next_sibling().find("div", class_="ar13")
+                try:
+                    text_1 = soup.find("td", string=re.compile("Выезд")).find_parent().find_next_sibling().find_next_sibling().find("div", class_="ar13")
+                except:
+                    logging.info(f"{data['Номер']} extra info - error")
             try:
                 data['Доп. инфо'] = text_1.text
             except:
@@ -385,7 +388,7 @@ def search(message):
             bot.send_message(message.chat.id, 'Письма отправлены')
         except:
             bot.send_message(message.chat.id, 'Письма НЕ отправлены')
-            logging.error(f"sends email - error", exc_info=True)
+            logging.error(f"{result[0]} sends email - error", exc_info=True)
         # finally:
         #     driver.close()
         #     driver.quit()
