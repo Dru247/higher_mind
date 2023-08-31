@@ -224,9 +224,9 @@ def search_people():
             except Exception as _ex:
                 logging.critical("func get_source_html - error", exc_info=True)
 
-            finally:
-                driver.close()
-                driver.quit()
+            # finally:
+            #     driver.close()
+            #     driver.quit()
 
 
     create_db()
