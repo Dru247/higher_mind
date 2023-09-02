@@ -18,6 +18,7 @@ from email.mime.text import MIMEText
 from pytz import timezone
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
+from telebot import types
 from webdriver_manager.chrome import ChromeDriverManager
 
 
@@ -38,10 +39,21 @@ options.add_argument("--headless")
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-TOKEN = os.getenv('TELEGRAM_TOKEN')
+telegram_token = os.getenv('TELEGRAM_TOKEN')
 my_id = os.getenv('TELEGRAM_MY_ID')
-bot = telebot.TeleBot(TOKEN)
+bot = telebot.TeleBot(telegram_token)
 database = "main.db"
+
+commands = ["Создать задание",
+            "Выполнить задание",
+            "Список заданий"
+        ]
+
+keyboard_main = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+item_1=types.KeyboardButton(commands[0])
+item_2=types.KeyboardButton(commands[1])
+item_3=types.KeyboardButton(commands[2])
+keyboard_main.row(item_1, item_2, item_3)
 
 
 def create_db():
@@ -58,16 +70,57 @@ def create_db():
 
 @bot.message_handler(commands=['start', 'help', 'commands'])
 def start_message(message):
-    bot.send_message(message.chat.id, 'Привет! Вводи:\nДля создания задачи: /create_task.\nДля отображения задач: /list_tasks\nЕсли задача выполнена: /task_completed\nЗадать таймер: /reminder')
+    bot.send_message(message.chat.id, 'Привет! Задать таймер: /reminder', reply_markup  = keyboard_main)
 
 
-@bot.message_handler(commands=['create_task'])
-def reminder_message(message):
-    if message.chat.id == int(my_id):
-        bot.send_message(message.chat.id, 'Введи текст задачи')
-        bot.register_next_step_handler(message, set_task)
-    else:
-        bot.send_message(message.chat.id, 'Сорян, бот для избранных ;)')
+@bot.message_handler(commands=['email'])
+def task_completed(message):
+    keyboard = types.InlineKeyboardMarkup()
+    key_small = types.InlineKeyboardButton(text='Близко', callback_data='place_small')
+    key_middle= types.InlineKeyboardButton(text='Средне', callback_data='place_middle')
+    key_big= types.InlineKeyboardButton(text='Далеко', callback_data='place_big')
+    keyboard.add(key_small, key_middle, key_big)
+    bot.send_message(message.from_user.id, text="Какое расстояние?", reply_markup=keyboard)
+
+
+@bot.message_handler(commands=['search'])
+def task_completed(message):
+    bot.send_message(message.chat.id, 'Старт поиска')
+    search_people()
+    bot.send_message(message.chat.id, 'Поиск закончен')
+
+
+@bot.message_handler(content_types=['text'])
+def send_text(message):
+    if message.text.lower() == commands[0].lower():
+        if message.chat.id == int(my_id):
+            bot.send_message(message.chat.id, 'Введи текст задачи')
+            bot.register_next_step_handler(message, set_task)
+        else:
+            bot.send_message(message.chat.id, 'Сорян, бот для избранных ;)')
+    elif message.text.lower() == commands[1].lower():
+        bot.send_message(message.chat.id, 'Введи ID задачи')
+        bot.register_next_step_handler(message, change_task)
+    elif message.text.lower() == commands[2].lower():
+        keyboard = types.InlineKeyboardMarkup()
+        key_new = types.InlineKeyboardButton(text='Не выполненные', callback_data='tasks_new')
+        key_old= types.InlineKeyboardButton(text='Выполненные', callback_data='tasks_old')
+        keyboard.add(key_new, key_old)
+        bot.send_message(message.from_user.id, text="Какие задания отобразить?", reply_markup=keyboard)
+
+
+@bot.callback_query_handler(func=lambda call:True)
+def callback_query(call):
+    if call.data == "tasks_new":
+        list_tasks(call.message, task_status="1")
+    if call.data == "tasks_old":
+        list_tasks(call.message, task_status="0")
+    if call.data == "place_small":
+        search(call.message, place=1)
+    if call.data == "place_middle":
+        search(call.message, place=2)
+    if call.data == "place_big":
+        search(call.message, place=3)
 
 
 def set_task(message):
@@ -77,31 +130,15 @@ def set_task(message):
         bot.send_message(message.chat.id, 'Задача создана')
 
 
-@bot.message_handler(commands=['list_tasks'])
-def list_task_request(message):
-        bot.send_message(message.chat.id, 'Введи New или Old')
-        bot.register_next_step_handler(message, list_tasks)
-
-
-def list_tasks(message):
-    data_records = {
-        "Old": 0,
-        "New": 1
-    }
+def list_tasks(message, task_status):
     try:
         with sq.connect(database) as con:
             cur = con.cursor()
-            cur.execute(f"SELECT * FROM tasks WHERE id_user = {message.chat.id} AND status = {data_records[message.text]}")
+            cur.execute(f"SELECT * FROM tasks WHERE id_user = {message.chat.id} AND status = {task_status}")
             for record in cur:
                 bot.send_message(message.chat.id, f"{record[0]}: {record[2]}")
     except:
         bot.send_message(message.chat.id, 'Некорректно')
-
-
-@bot.message_handler(commands=['task_completed'])
-def task_completed(message):
-    bot.send_message(message.chat.id, 'Введи ID задачи')
-    bot.register_next_step_handler(message, change_task)
 
 
 def change_task(message):
@@ -135,13 +172,6 @@ def make_reminder(message):
             time.sleep(1)
     
     threading.Thread(target=timer, args=(message,)).start()
-
-
-@bot.message_handler(commands=['search'])
-def task_completed(message):
-    bot.send_message(message.chat.id, 'Старт поиска')
-    search_people()
-    bot.send_message(message.chat.id, 'Поиск закончен')
 
 
 def search_people():
@@ -233,13 +263,8 @@ def search_people():
     get_source_html(search_url)
 
 
-@bot.message_handler(commands=['email'])
-def task_completed(message):
-    bot.send_message(message.chat.id, 'Введите small, middle или big ')
-    bot.register_next_step_handler(message, search)
-
-
-def search(message):
+def search(message, place):
+    bot.send_message(message.chat.id, 'Старт формирования сообщений')
     db_1 = "people.db"
     search_1 = os.getenv('SEARCH')
     profiles = []
@@ -402,16 +427,11 @@ def search(message):
                 places_list.append(row[0])
 
     
-    def filter(search_data, visit_anks):
+    def filter(search_place, visit_anks):
         with sq.connect(db_1) as con:
             cur = con.cursor()
             cur.execute(search_1)
-            if search_data == 'small':
-                places_output(1)
-            if search_data == 'middle':
-                places_output(2)
-            if search_data == 'big':
-                places_output(3)
+            places_output(search_place)
             for result in cur:
                 if (result[1] in places_list) and (result[0] not in visit_anks): 
                     profiles.append(result)
@@ -428,7 +448,7 @@ def search(message):
         return visit_anks
 
 
-    filter(message.text, visits())
+    filter(place, visits())
 
 
 # @bot.message_handler(commands=['reminder'])
