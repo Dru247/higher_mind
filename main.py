@@ -1,4 +1,7 @@
+import config
+import datetime
 import logging
+import imaplib
 import os
 import random
 import re
@@ -39,10 +42,7 @@ options.add_argument("--headless")
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-telegram_token = os.getenv('TELEGRAM_TOKEN')
-my_id = os.getenv('TELEGRAM_MY_ID')
-bot = telebot.TeleBot(telegram_token)
-database = "main.db"
+bot = telebot.TeleBot(config.telegram_token)
 
 commands = ["Создать задание",
             "Выполнить задание",
@@ -57,7 +57,7 @@ keyboard_main.row(item_1, item_2, item_3)
 
 
 def create_db():
-    with sq.connect(database) as con:
+    with sq.connect(config.database) as con:
         cur = con.cursor()
         cur.execute("""CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,10 +90,16 @@ def task_completed(message):
     bot.send_message(message.chat.id, 'Поиск закончен')
 
 
+@bot.message_handler(commands=['reminder_email'])
+def main(message):
+    worker_thread = threading.Thread(target=schedule_bigger(message))
+    worker_thread.start()
+
+
 @bot.message_handler(content_types=['text'])
 def send_text(message):
     if message.text.lower() == commands[0].lower():
-        if message.chat.id == int(my_id):
+        if message.chat.id == int(config.telegram_my_id):
             bot.send_message(message.chat.id, 'Введи текст задачи')
             bot.register_next_step_handler(message, set_task)
         else:
@@ -124,7 +130,7 @@ def callback_query(call):
 
 
 def set_task(message):
-    with sq.connect(database) as con:
+    with sq.connect(config.database) as con:
         cur = con.cursor()
         cur.execute(f"INSERT INTO tasks (id_user, task, status) VALUES ({message.chat.id}, '{message.text}', {1})")
         bot.send_message(message.chat.id, 'Задача создана')
@@ -132,7 +138,7 @@ def set_task(message):
 
 def list_tasks(message, task_status):
     try:
-        with sq.connect(database) as con:
+        with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"SELECT * FROM tasks WHERE id_user = {message.chat.id} AND status = {task_status}")
             for record in cur:
@@ -143,35 +149,12 @@ def list_tasks(message, task_status):
 
 def change_task(message):
     try:
-        with sq.connect(database) as con:
+        with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"UPDATE tasks SET status = {0} WHERE id = {int(message.text)}")
         bot.send_message(message.chat.id, f"Задача с ID {message.text} выполнена")
     except:
         bot.send_message(message.chat.id, 'ID не верен')
-
-
-@bot.message_handler(commands=['reminder'])
-def task_completed(message):
-    bot.send_message(message.chat.id, 'Введи дату и время первого напоминания (ЧЧ:ММ)')
-    bot.register_next_step_handler(message, make_reminder)
-
-
-def make_reminder(message):
-    def print_tasks():
-        with sq.connect(database) as con:
-            cur = con.cursor()
-            cur.execute(f"SELECT * FROM tasks WHERE id_user = {message.chat.id} AND status = {1}")
-            for record in cur:
-                bot.send_message(message.chat.id, f"{record[0]}: {record[2]}")
-
-    def timer(message,):
-        schedule.every().days.at(message.text, timezone('Europe/Moscow')).do(print_tasks)
-        while True:
-            schedule.run_pending()
-            time.sleep(1)
-    
-    threading.Thread(target=timer, args=(message,)).start()
 
 
 def search_people():
@@ -451,6 +434,62 @@ def search(message, place):
     filter(place, visits())
 
 
+@bot.message_handler(commands=['reminder'])
+def task_completed(message):
+    bot.send_message(message.chat.id, 'Введи дату и время первого напоминания (ЧЧ:ММ)')
+    bot.register_next_step_handler(message, make_reminder)
+
+
+def make_reminder(message):
+    def print_tasks():
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"SELECT * FROM tasks WHERE id_user = {message.chat.id} AND status = {1}")
+            for record in cur:
+                bot.send_message(message.chat.id, f"{record[0]}: {record[2]}")
+
+    def timer(message,):
+        schedule.every().days.at(message.text, timezone(config.timezone_my)).do(print_tasks)
+        while True:
+            schedule.run_pending()
+            time.sleep(1)
+    
+    threading.Thread(target=timer, args=(message,)).start()
+
+# Email unseen messages reminder
+def check_email(message):
+    try:
+        mailBox = imaplib.IMAP4_SSL(config.imap_server_mailru)
+        mailBox.login(config.my_email_mailru, config.password_my_email_mailru)
+        mailBox.select()
+        unseen_msg = mailBox.uid('search', "UNSEEN", "ALL")
+        if unseen_msg[1][0]:
+            bot.send_message(message.chat.id, f"На почте {config.my_email_mailru} есть непрочитанные письма")
+            logging.info(f"{config.my_email_mailru} has unseen messages")
+        else:
+            logging.info(f"{config.my_email_mailru} doesn't have unseen messages")
+
+    except Exception:
+        logging.error(f"func check email - error", exc_info=True)
+        
+    finally:
+        mailBox.close()
+        mailBox.logout()
+
+
+def create_schedule(message):
+    schedule.every().hour.until(datetime.timedelta(hours=11)).do(check_email, message=message)
+    logging.info(f"Schedule 'check_email' every hour starts")
+
+def schedule_bigger(message):
+    schedule.every().day.at(config.work_day_start, timezone(config.timezone_my)).do(create_schedule, message=message)
+    logging.info(f"Schedule 'check_email' every days starts")
+
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+
 # @bot.message_handler(commands=['reminder'])
 # def reminder_message(message):
 #     bot.send_message(message.chat.id, 'Введите текст напоминания')
@@ -480,6 +519,7 @@ def search(message, place):
 
 # def send_reminder(chat_id, reminder_name):
 #     bot.send_message(chat_id, 'Время получить ваше напоминание "{}"!'.format(reminder_name))
+
 
 @bot.message_handler(func=lambda message: True)
 def handler_all_message(message):
