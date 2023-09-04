@@ -463,8 +463,12 @@ def check_email(message):
         mailBox.login(config.my_email_mailru, config.password_my_email_mailru)
         mailBox.select()
         unseen_msg = mailBox.uid('search', "UNSEEN", "ALL")
-        if unseen_msg[1][0]:
-            bot.send_message(message.chat.id, f"На почте {config.my_email_mailru} есть непрочитанные письма")
+        id_unseen_msgs = unseen_msg[1][0].decode("utf-8").split(" ")
+        if id_unseen_msgs:
+            bot.send_message(
+                message.chat.id,
+                f"На почте {config.my_email_mailru} есть непрочитанные письма, в кол-ве {len(id_unseen_msgs)} шт."
+                )
             logging.info(f"{config.my_email_mailru} has unseen messages")
         else:
             logging.info(f"{config.my_email_mailru} doesn't have unseen messages")
