@@ -64,13 +64,14 @@ def create_db():
             id_user INTEGER,
             task TEXT,
             status INTEGER,
-            datetime DEFAULT CURRENT_TIMESTAMP
+            datetime_creation DEFAULT CURRENT_TIMESTAMP,
+            datetime_completion TEXT
             )""")
 
 
 @bot.message_handler(commands=['start', 'help', 'commands'])
 def start_message(message):
-    bot.send_message(message.chat.id, 'Привет! Задать таймер: /reminder', reply_markup  = keyboard_main)
+    bot.send_message(message.chat.id, f'Привет! Задать таймер: /reminder', reply_markup  = keyboard_main)
 
 
 @bot.message_handler(commands=['email'])
@@ -88,12 +89,6 @@ def task_completed(message):
     bot.send_message(message.chat.id, 'Старт поиска')
     search_people()
     bot.send_message(message.chat.id, 'Поиск закончен')
-
-
-@bot.message_handler(commands=['reminder_email'])
-def main(message):
-    worker_thread = threading.Thread(target=schedule_bigger(message))
-    worker_thread.start()
 
 
 @bot.message_handler(content_types=['text'])
@@ -144,6 +139,7 @@ def list_tasks(message, task_status):
             for record in cur:
                 bot.send_message(message.chat.id, f"{record[0]}: {record[2]}")
     except:
+        logging.warning("func list_tasks - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
 
 
@@ -151,9 +147,11 @@ def change_task(message):
     try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"UPDATE tasks SET status = {0} WHERE id = {int(message.text)}")
+            time_now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            cur.execute(f"UPDATE tasks SET status = {0}, datetime_completion = '{time_now}' WHERE id = {int(message.text)}")
         bot.send_message(message.chat.id, f"Задача с ID {message.text} выполнена")
     except:
+        logging.warning("func change_task - error", exc_info=True)
         bot.send_message(message.chat.id, 'ID не верен')
 
 
@@ -248,19 +246,13 @@ def search_people():
 
 def search(message, place):
     bot.send_message(message.chat.id, 'Старт формирования сообщений')
-    db_1 = "people.db"
     search_1 = os.getenv('SEARCH')
     profiles = []
     places_list = []
     
 
     def send_email(email_data):
-        sender = os.getenv("EMAIL_SENDER")
-        password = os.getenv("EMAIL_SENDER_PASSWORD")
-        recipient = os.getenv("EMAIL_RECIPIENT")
-        smtp_server = os.getenv("SMTP_SERVER")
-        smtp_port = os.getenv("SMTP_PORT")
-        server = smtplib.SMTP(smtp_server, smtp_port)
+        server = smtplib.SMTP(config.smtp_server, config.smtp_port)
         server.starttls()
 
         email_text = ""
@@ -282,8 +274,8 @@ def search(message, place):
                 message.attach(image_file)
 
         try:
-            server.login(sender, password)
-            server.sendmail(sender, recipient, message.as_string())
+            server.login(config.sender_email, config.sender_email_password)
+            server.sendmail(config.sender_email, config.recipient_email, message.as_string())
         except Exception as _ex:
             logging.critical("send email - error", exc_info=True)
 
@@ -403,7 +395,7 @@ def search(message, place):
 
 
     def places_output(distance):
-        with sq.connect(db_1) as con:
+        with sq.connect(config.db_search) as con:
             cur = con.cursor()
             cur.execute("SELECT place FROM places WHERE (distance BETWEEN 1 AND ?)", (distance,))
             for row in cur:
@@ -411,7 +403,7 @@ def search(message, place):
 
     
     def filter(search_place, visit_anks):
-        with sq.connect(db_1) as con:
+        with sq.connect(config.db_search) as con:
             cur = con.cursor()
             cur.execute(search_1)
             places_output(search_place)
@@ -423,7 +415,7 @@ def search(message, place):
 
     def visits():
         visit_anks = []
-        with sq.connect(db_1) as con:
+        with sq.connect(config.db_search) as con:
             cur = con.cursor()
             cur.execute("SELECT number_profile FROM profiles")
             for row in cur:
@@ -457,21 +449,32 @@ def make_reminder(message):
     threading.Thread(target=timer, args=(message,)).start()
 
 # Email unseen messages reminder
-def check_email(message):
+def preparation_emails():
+    emails = [
+        (config.imap_server_mailru, config.my_email_mailru, config.password_my_email_mailru),
+        (config.imap_server_yandex, config.my_email_yandex, config.password_my_email_yandex),
+        (config.imap_server_gmail, config.my_email_gmail, config.password_my_email_gmail)
+    ]
+
+    for imap_server, email_login, email_password in emails:
+        check_email(imap_server, email_login, email_password)
+
+
+def check_email(imap_server, email_login, email_password):
     try:
-        mailBox = imaplib.IMAP4_SSL(config.imap_server_mailru)
-        mailBox.login(config.my_email_mailru, config.password_my_email_mailru)
+        mailBox = imaplib.IMAP4_SSL(imap_server)
+        mailBox.login(email_login, email_password)
         mailBox.select()
         unseen_msg = mailBox.uid('search', "UNSEEN", "ALL")
         id_unseen_msgs = unseen_msg[1][0].decode("utf-8").split(" ")
         if id_unseen_msgs:
             bot.send_message(
-                message.chat.id,
-                f"На почте {config.my_email_mailru} есть непрочитанные письма, в кол-ве {len(id_unseen_msgs)} шт."
+                config.telegram_my_id,
+                f"На почте {email_login} есть непрочитанные письма, в кол-ве {len(id_unseen_msgs)} шт."
                 )
-            logging.info(f"{config.my_email_mailru} has unseen messages")
+            logging.info(f"{email_login} has unseen messages")
         else:
-            logging.info(f"{config.my_email_mailru} doesn't have unseen messages")
+            logging.info(f"{email_login} doesn't have unseen messages")
 
     except Exception:
         logging.error(f"func check email - error", exc_info=True)
@@ -481,12 +484,13 @@ def check_email(message):
         mailBox.logout()
 
 
-def create_schedule(message):
-    schedule.every().hour.until(datetime.timedelta(hours=11)).do(check_email, message=message)
+
+def create_schedule():
+    schedule.every().hour.until(datetime.timedelta(hours=13)).do(preparation_emails)
     logging.info(f"Schedule 'check_email' every hour starts")
 
-def schedule_bigger(message):
-    schedule.every().day.at(config.work_day_start, timezone(config.timezone_my)).do(create_schedule, message=message)
+def schedule_bigger():
+    schedule.every().day.at(config.work_day_start, timezone(config.timezone_my)).do(create_schedule)
     logging.info(f"Schedule 'check_email' every days starts")
 
     while True:
@@ -532,4 +536,5 @@ def handler_all_message(message):
 
 if __name__ == '__main__':
     create_db()
+    threading.Thread(target=schedule_bigger).start()
     bot.polling(none_stop=True)
