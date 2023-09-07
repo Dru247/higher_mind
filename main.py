@@ -46,19 +46,28 @@ bot = telebot.TeleBot(config.telegram_token)
 
 commands = ["Создать задание",
             "Выполнить задание",
-            "Список заданий"
+            "Список заданий",
+            "Добавить рутину"
         ]
 
 keyboard_main = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+
 item_1=types.KeyboardButton(commands[0])
 item_2=types.KeyboardButton(commands[1])
 item_3=types.KeyboardButton(commands[2])
-keyboard_main.row(item_1, item_2, item_3)
+item_4=types.KeyboardButton(commands[3])
+keyboard_main.row(item_1, item_2, item_3, item_4)
 
 
 def create_db():
     with sq.connect(config.database) as con:
         cur = con.cursor()
+        cur.execute("""CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            first_name TEXT,
+            telegram_id INTEGER UNIQUE,
+            datetime_creation DEFAULT CURRENT_TIMESTAMP
+            )""")
         cur.execute("""CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             id_user INTEGER,
@@ -67,9 +76,35 @@ def create_db():
             datetime_creation DEFAULT CURRENT_TIMESTAMP,
             datetime_completion TEXT
             )""")
+        cur.execute("""CREATE TABLE IF NOT EXISTS emails (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user INTEGER,
+            email TEXT UNIQUE,
+            unseen_status INTEGER,
+            FOREIGN KEY (user) REFERENCES users (id)
+            )""")
+        cur.execute("""CREATE TABLE IF NOT EXISTS routine_types (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT
+            )""")
+        cur.execute("""CREATE TABLE IF NOT EXISTS routine (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user INTEGER,
+            routine_type INTEGER,
+            date TEXT,
+            success INTEGER DEFAULT 1,
+            FOREIGN KEY (user) REFERENCES users (id),
+            FOREIGN KEY (routine_type) REFERENCES routine_types (id)
+            )""")
+        
+
+@bot.message_handler(commands=['start'])
+def start_message(message):
+    bot.send_message(message.chat.id, f'Привет! Напиши имя')
+    bot.register_next_step_handler(message, set_user)
 
 
-@bot.message_handler(commands=['start', 'help', 'commands'])
+@bot.message_handler(commands=['help', 'commands'])
 def start_message(message):
     bot.send_message(message.chat.id, f'Привет! Задать таймер: /reminder', reply_markup  = keyboard_main)
 
@@ -108,22 +143,128 @@ def send_text(message):
         key_old= types.InlineKeyboardButton(text='Выполненные', callback_data='tasks_old')
         keyboard.add(key_new, key_old)
         bot.send_message(message.from_user.id, text="Какие задания отобразить?", reply_markup=keyboard)
+    elif message.text.lower() == commands[3].lower():
+        inline_keys = []
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"SELECT id, name FROM routine_types")
+            for record in cur:
+                inline_keys.append(types.InlineKeyboardButton(text=record[1], callback_data=f"routine_type: {record[0]}"))
+        keyboard = types.InlineKeyboardMarkup()
+        inline_keys.append(types.InlineKeyboardButton(text='Новый тип рутины', callback_data='new_type_routine'))
+        for key in inline_keys:
+            keyboard.add(key)
+        bot.send_message(message.from_user.id, text="Введи тип рутины", reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda call:True)
 def callback_query(call):
     if call.data == "tasks_new":
         list_tasks(call.message, task_status="1")
-    if call.data == "tasks_old":
+    elif call.data == "tasks_old":
         list_tasks(call.message, task_status="0")
-    if call.data == "place_small":
-        search(call.message, place=1)
-    if call.data == "place_middle":
-        search(call.message, place=2)
-    if call.data == "place_big":
-        search(call.message, place=3)
+    elif call.data == "place_small":
+        access_check(call.message, place=1)
+    elif call.data == "place_middle":
+        access_check(call.message, place=2)
+    elif call.data == "place_big":
+        access_check(call.message, place=3)
+    elif call.data == "new_type_routine":
+        set_type_routine(call.message)
+    elif "routine_type:" in call.data:
+        set_routine(call.message, call.data)
+    elif "routine_set_status" in call.data:
+        set_routine_status(call.message, call.data)
 
 
+# routine
+def set_type_routine(message):
+    bot.send_message(message.chat.id, text="Введи новый тип рутины")
+    bot.register_next_step_handler(message, add_routine_type)
+
+
+def add_routine_type(message):
+    try:
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"INSERT INTO routine_types(name) VALUES('{message.text}')")
+            bot.send_message(message.chat.id, text=f"Новый тип рутины ({message.text}) добавлен", reply_markup  = keyboard_main)
+        
+    except:
+        logging.warning("func add_routine - error", exc_info=True)
+        bot.send_message(message.chat.id, 'Некорректно')
+
+
+def set_routine(message, call_data):
+    routine_type = call_data.split(" ")[1] 
+    bot.send_message(message.chat.id, text="Введи дату (ГГГГ-ММ-ДД)")
+    bot.register_next_step_handler(message, lambda m: add_routine(m, routine_type))
+    
+
+def add_routine(message, routine_type):
+    try:
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"INSERT INTO routine(user, routine_type, date) VALUES((SELECT id FROM users WHERE telegram_id = {message.chat.id}), {routine_type}, '{message.text}')")
+            bot.send_message(message.chat.id, text=f"Новая рутина ({message.text}) добавлена", reply_markup  = keyboard_main)
+        
+    except:
+        logging.warning("func set_routine - error", exc_info=True)
+        bot.send_message(message.chat.id, 'Некорректно')
+
+
+def routine_daily_check():
+    try:
+        date_yesterday = datetime.date.today() - datetime.timedelta(days=1)
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"SELECT id, (SELECT name FROM routine_types WHERE routine.id = routine_types.id), date FROM routine WHERE date = '{date_yesterday}' AND success = {1}")
+            results = cur.fetchall()
+            if results:
+                logging.info(f"func routine_daily_check: exist daily routine ({results})")
+                for result in results:
+                    routine_id = result[0]
+                    keyboard = types.InlineKeyboardMarkup()
+                    key_1 = types.InlineKeyboardButton(text='Выполнена', callback_data=f"routine_set_status {routine_id}0")
+                    key_2= types.InlineKeyboardButton(text='Не выполнена', callback_data=f"routine_set_status {routine_id}1")
+                    keyboard.add(key_1, key_2)
+                    bot.send_message(config.telegram_my_id, text=f"Рутина {result[1]} {result[2]}", reply_markup=keyboard)
+            else:
+                logging.info(f"func routine_daily_check: not exist daily routine ({results})")
+                bot.send_message(config.telegram_my_id, text=f"Вчера рутин не было")
+    except:
+        logging.warning("func routine_daily_check - error", exc_info=True)
+        bot.send_message(config.telegram_my_id, text="Некорректно")
+
+
+def set_routine_status(message, call_data):
+    data = call_data.split(" ")
+    routine_status = int(data[1][1])
+    routine_id = data[1][0]
+    if routine_status == 0:
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"UPDATE routine SET success = {routine_status} WHERE id = {routine_id}")
+        bot.send_message(message.chat.id, f"Рутина выполнена")
+    else:
+        logging.info(f"routine id={routine_id} unsuccess, status={routine_status}")
+        bot.send_message(message.chat.id, 'Очень жаль, что ты не выполнил рутину...')
+
+
+# user
+def set_user(message):
+    try:
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"INSERT INTO users (first_name, telegram_id) VALUES ('{message.text}', {message.chat.id})")
+            bot.send_message(message.chat.id, 'Приятно познакомиться', reply_markup  = keyboard_main)
+    
+    except:
+        logging.warning("func set_user - error", exc_info=True)
+        bot.send_message(message.chat.id, 'Некорректно')
+
+
+# tasks
 def set_task(message):
     with sq.connect(config.database) as con:
         cur = con.cursor()
@@ -244,6 +385,27 @@ def search_people():
     get_source_html(search_url)
 
 
+def access_check(message, place):
+    try:
+        date_now = datetime.date.today()
+        date_week = date_now - datetime.timedelta(days=7)
+    
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"SELECT EXISTS(SELECT success FROM routine WHERE (date BETWEEN '{date_week}' AND '{date_now}') AND success = {1})")
+            status = int(cur.fetchall()[0][0])
+            if status == 0:
+                logging.info(f"access_check: access successful: {status}")
+                bot.send_message(message.chat.id, text="Допуск получен")
+                search(message, place)
+            else:
+                logging.info(f"access_check: access unsuccessful: {status}")
+                bot.send_message(message.chat.id, text="Допуск не получен")
+    except:
+        logging.warning("func access_check - error", exc_info=True)
+        bot.send_message('Некорректно')
+
+
 def search(message, place):
     bot.send_message(message.chat.id, 'Старт формирования сообщений')
     search_1 = os.getenv('SEARCH')
@@ -259,6 +421,8 @@ def search(message, place):
         for text in email_data:
             email_text += f"{text}: {email_data[text]}\n"
         message = MIMEMultipart()
+        message["From"] = config.sender_email
+        message["To"] = config.recipient_email
         message["Subject"] = email_data['Мт']
         part = MIMEText(email_text)
         message.attach(part)
@@ -278,6 +442,8 @@ def search(message, place):
             server.sendmail(config.sender_email, config.recipient_email, message.as_string())
         except Exception as _ex:
             logging.critical("send email - error", exc_info=True)
+        finally:
+            server.quit()
 
 
     def search_data_profile(result):
@@ -484,14 +650,15 @@ def check_email(imap_server, email_login, email_password):
         mailBox.logout()
 
 
-
-def create_schedule():
+def daily_schedule():
     schedule.every().hour.until(datetime.timedelta(hours=13)).do(preparation_emails)
-    logging.info(f"Schedule 'check_email' every hour starts")
+    logging.info(f"Schedule 'every_hour' every hour starts")
+    routine_daily_check()
+
 
 def schedule_bigger():
-    schedule.every().day.at(config.work_day_start, timezone(config.timezone_my)).do(create_schedule)
-    logging.info(f"Schedule 'check_email' every days starts")
+    schedule.every().day.at(config.work_day_start, timezone(config.timezone_my)).do(daily_schedule)
+    logging.info(f"Schedule 'every_day' starts")
 
     while True:
         schedule.run_pending()
@@ -536,5 +703,6 @@ def handler_all_message(message):
 
 if __name__ == '__main__':
     create_db()
+    routine_daily_check()
     threading.Thread(target=schedule_bigger).start()
     bot.polling(none_stop=True)
