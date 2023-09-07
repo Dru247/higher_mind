@@ -703,6 +703,5 @@ def handler_all_message(message):
 
 if __name__ == '__main__':
     create_db()
-    routine_daily_check()
     threading.Thread(target=schedule_bigger).start()
     bot.polling(none_stop=True)
