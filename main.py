@@ -112,9 +112,9 @@ def start_message(message):
 @bot.message_handler(commands=['email'])
 def task_completed(message):
     keyboard = types.InlineKeyboardMarkup()
-    key_small = types.InlineKeyboardButton(text='Близко', callback_data='place_small')
-    key_middle= types.InlineKeyboardButton(text='Средне', callback_data='place_middle')
-    key_big= types.InlineKeyboardButton(text='Далеко', callback_data='place_big')
+    key_small = types.InlineKeyboardButton(text='Близко', callback_data='search_place 1')
+    key_middle= types.InlineKeyboardButton(text='Средне', callback_data='search_place 2')
+    key_big= types.InlineKeyboardButton(text='Далеко', callback_data='search_place 3')
     keyboard.add(key_small, key_middle, key_big)
     bot.send_message(message.from_user.id, text="Какое расстояние?", reply_markup=keyboard)
 
@@ -127,7 +127,7 @@ def task_completed(message):
 
 
 @bot.message_handler(content_types=['text'])
-def send_text(message):
+def take_text(message):
     if message.text.lower() == commands[0].lower():
         if message.chat.id == int(config.telegram_my_id):
             bot.send_message(message.chat.id, 'Введи текст задачи')
@@ -139,8 +139,8 @@ def send_text(message):
         bot.register_next_step_handler(message, change_task)
     elif message.text.lower() == commands[2].lower():
         keyboard = types.InlineKeyboardMarkup()
-        key_new = types.InlineKeyboardButton(text='Не выполненные', callback_data='tasks_new')
-        key_old= types.InlineKeyboardButton(text='Выполненные', callback_data='tasks_old')
+        key_new = types.InlineKeyboardButton(text='Не выполненные', callback_data='list_tasks 1')
+        key_old= types.InlineKeyboardButton(text='Выполненные', callback_data='list_tasks 0')
         keyboard.add(key_new, key_old)
         bot.send_message(message.from_user.id, text="Какие задания отобразить?", reply_markup=keyboard)
     elif message.text.lower() == commands[3].lower():
@@ -149,32 +149,29 @@ def send_text(message):
             cur = con.cursor()
             cur.execute(f"SELECT id, name FROM routine_types")
             for record in cur:
-                inline_keys.append(types.InlineKeyboardButton(text=record[1], callback_data=f"routine_type: {record[0]}"))
+                inline_keys.append(types.InlineKeyboardButton(text=record[1], callback_data=f"routine_type {record[0]}"))
         keyboard = types.InlineKeyboardMarkup()
         inline_keys.append(types.InlineKeyboardButton(text='Новый тип рутины', callback_data='new_type_routine'))
         for key in inline_keys:
             keyboard.add(key)
         bot.send_message(message.from_user.id, text="Введи тип рутины", reply_markup=keyboard)
+    else:
+        logging.warning(f"func take_text: not understend question: {message.text}")
+        bot.send_message(message.chat.id, 'Я не понимаю, что вы говорите')
 
 
 @bot.callback_query_handler(func=lambda call:True)
 def callback_query(call):
-    if call.data == "tasks_new":
-        list_tasks(call.message, task_status="1")
-    elif call.data == "tasks_old":
-        list_tasks(call.message, task_status="0")
-    elif call.data == "place_small":
-        access_check(call.message, place=1)
-    elif call.data == "place_middle":
-        access_check(call.message, place=2)
-    elif call.data == "place_big":
-        access_check(call.message, place=3)
+    if "list_tasks" in call.data:
+        list_tasks(call.message, call.data)
     elif call.data == "new_type_routine":
         set_type_routine(call.message)
-    elif "routine_type:" in call.data:
+    elif "routine_type" in call.data:
         set_routine(call.message, call.data)
     elif "routine_set_status" in call.data:
         set_routine_status(call.message, call.data)
+    elif "search_place" in call.data:
+        access_check(call.message, call.data)
 
 
 # routine
@@ -218,7 +215,7 @@ def routine_daily_check():
         date_yesterday = datetime.date.today() - datetime.timedelta(days=1)
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"SELECT id, (SELECT name FROM routine_types WHERE routine.id = routine_types.id), date FROM routine WHERE date = '{date_yesterday}' AND success = {1}")
+            cur.execute(f"SELECT id, (SELECT name FROM routine_types WHERE routine.routine_type = routine_types.id), date FROM routine WHERE date = '{date_yesterday}' AND success = {1}")
             results = cur.fetchall()
             if results:
                 logging.info(f"func routine_daily_check: exist daily routine ({results})")
@@ -233,7 +230,7 @@ def routine_daily_check():
                 logging.info(f"func routine_daily_check: not exist daily routine ({results})")
                 bot.send_message(config.telegram_my_id, text=f"Вчера рутин не было")
     except:
-        logging.warning("func routine_daily_check - error", exc_info=True)
+        logging.critical("func routine_daily_check - error", exc_info=True)
         bot.send_message(config.telegram_my_id, text="Некорректно")
 
 
@@ -272,8 +269,9 @@ def set_task(message):
         bot.send_message(message.chat.id, 'Задача создана')
 
 
-def list_tasks(message, task_status):
+def list_tasks(message, call_data):
     try:
+        task_status = call_data.split(" ")[1]
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"SELECT * FROM tasks WHERE id_user = {message.chat.id} AND status = {task_status}")
@@ -385,7 +383,7 @@ def search_people():
     get_source_html(search_url)
 
 
-def access_check(message, place):
+def access_check(message, call_data):
     try:
         date_now = datetime.date.today()
         date_week = date_now - datetime.timedelta(days=7)
@@ -397,7 +395,7 @@ def access_check(message, place):
             if status == 0:
                 logging.info(f"access_check: access successful: {status}")
                 bot.send_message(message.chat.id, text="Допуск получен")
-                search(message, place)
+                search(message, call_data)
             else:
                 logging.info(f"access_check: access unsuccessful: {status}")
                 bot.send_message(message.chat.id, text="Допуск не получен")
@@ -406,12 +404,13 @@ def access_check(message, place):
         bot.send_message('Некорректно')
 
 
-def search(message, place):
+def search(message, call_data):
     bot.send_message(message.chat.id, 'Старт формирования сообщений')
     search_1 = os.getenv('SEARCH')
     profiles = []
     places_list = []
-    
+    place = call_data.split(" ")[1]
+
 
     def send_email(email_data):
         server = smtplib.SMTP(config.smtp_server, config.smtp_port)
@@ -665,40 +664,37 @@ def schedule_bigger():
         time.sleep(1)
 
 
-# @bot.message_handler(commands=['reminder'])
-# def reminder_message(message):
-#     bot.send_message(message.chat.id, 'Введите текст напоминания')
-#     bot.register_next_step_handler(message, set_reminder_name)
+def reminder_message(message):
+    pass
+    # @bot.message_handler(commands=['reminder'])
+    # def reminder_message(message):
+    #     bot.send_message(message.chat.id, 'Введите текст напоминания')
+    #     bot.register_next_step_handler(message, set_reminder_name)
 
 
-# def set_reminder_name(message):
-#     user_data = {}
-#     user_data[message.chat.id] = {'reminder_name': message.text}
-#     bot.send_message(message.chat.id, 'Введите дату и время, когда хотите получить напоминание в формате ГГГГ-ММ-ДД чч:мм:сс')
-#     bot.register_next_step_handler(message, reminder_set, user_data)
+    # def set_reminder_name(message):
+    #     user_data = {}
+    #     user_data[message.chat.id] = {'reminder_name': message.text}
+    #     bot.send_message(message.chat.id, 'Введите дату и время, когда хотите получить напоминание в формате ГГГГ-ММ-ДД чч:мм:сс')
+    #     bot.register_next_step_handler(message, reminder_set, user_data)
 
-# def reminder_set(message, user_data):
-#     try:
-#         reminder_time = datetime.datetime.strptime(message.text, '%Y-%m-%d %H:%M:%S')
-#         now = datetime.datetime.now()
-#         delta = reminder_time - now
-#         if delta.total_seconds() <= 0:
-#             bot.send_message(message.chat.id, 'Вы ввели прошедшую дату, попробуйте ещё раз')
-#         else:
-#             reminder_name = user_data[message.chat.id]['reminder_name']
-#             bot.send_message(message.chat.id, 'Напоминание {} установлено на {}.'.format(reminder_name, reminder_time))
-#             reminder_time = threading.Timer(delta.total_seconds(), send_reminder, [message.chat.id, reminder_name])
-#             reminder_time.start()
-#     except ValueError:
-#         bot.send_message(message.chat.id, 'Вы ввели неверный формат даты и времени, попробуйте ещё раз')
+    # def reminder_set(message, user_data):
+    #     try:
+    #         reminder_time = datetime.datetime.strptime(message.text, '%Y-%m-%d %H:%M:%S')
+    #         now = datetime.datetime.now()
+    #         delta = reminder_time - now
+    #         if delta.total_seconds() <= 0:
+    #             bot.send_message(message.chat.id, 'Вы ввели прошедшую дату, попробуйте ещё раз')
+    #         else:
+    #             reminder_name = user_data[message.chat.id]['reminder_name']
+    #             bot.send_message(message.chat.id, 'Напоминание {} установлено на {}.'.format(reminder_name, reminder_time))
+    #             reminder_time = threading.Timer(delta.total_seconds(), send_reminder, [message.chat.id, reminder_name])
+    #             reminder_time.start()
+    #     except ValueError:
+    #         bot.send_message(message.chat.id, 'Вы ввели неверный формат даты и времени, попробуйте ещё раз')
 
-# def send_reminder(chat_id, reminder_name):
-#     bot.send_message(chat_id, 'Время получить ваше напоминание "{}"!'.format(reminder_name))
-
-
-@bot.message_handler(func=lambda message: True)
-def handler_all_message(message):
-    bot.send_message(message.chat.id, 'Я не понимаю, что вы говорите')
+    # def send_reminder(chat_id, reminder_name):
+    #     bot.send_message(chat_id, 'Время получить ваше напоминание "{}"!'.format(reminder_name))
 
 
 if __name__ == '__main__':
