@@ -8,9 +8,9 @@ load_dotenv()
 telegram_token = os.getenv('TELEGRAM_TOKEN')
 telegram_my_id = os.getenv('TELEGRAM_MY_ID')
 database = "main.db"
-db_search = "people.db"
 work_day_start = "07:00"
 timezone_my = "Europe/Moscow"
+coding = "utf-8"
 
 # mail.ru
 imap_server_mailru = "imap.mail.ru"
@@ -27,9 +27,6 @@ imap_server_yandex = "imap.yandex.ru"
 my_email_yandex = os.getenv("EMAIL_YANDEX")
 password_my_email_yandex = os.getenv("PASSWORD_EMAIL_YANDEX")
 
-# rambler
-smtp_server = "smtp.rambler.ru"
-smtp_port = "587"
-sender_email = os.getenv("EMAIL_RAMBLER_1")
-sender_email_password = os.getenv("EMAIL_SENDER_PASSWORD")
-recipient_email = os.getenv("EMAIL_RAMBLER_2")
+# socket
+socket_server = os.getenv("SOCKET_SERVER")
+socket_port = int(os.getenv("SOCKET_PORT"))

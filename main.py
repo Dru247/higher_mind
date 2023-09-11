@@ -2,45 +2,19 @@ import config
 import datetime
 import logging
 import imaplib
-import os
-import random
-import re
-import smtplib
 import schedule
-import shutil
+import socket
 import sqlite3 as sq
 import telebot
 import threading
 import time
 
-from bs4 import BeautifulSoup
-from dotenv import load_dotenv
-from email.mime.image import MIMEImage
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pytz import timezone
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from telebot import types
-from webdriver_manager.chrome import ChromeDriverManager
 
-
-load_dotenv()
 
 logging.basicConfig(level=logging.INFO, filename="logs.log", filemode="a",
                     format="%(asctime)s %(levelname)s %(message)s")
-
-options = webdriver.ChromeOptions()
-
-options.add_argument("--no-sandbox")
-
-# for ChromeDriver version 79.0.3945.16 or over
-options.add_argument("--disable-blink-features=AutomationControlled")
-
-# background mode
-options.add_argument("--headless")
-
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 bot = telebot.TeleBot(config.telegram_token)
 
@@ -68,13 +42,19 @@ def create_db():
             telegram_id INTEGER UNIQUE,
             datetime_creation DEFAULT CURRENT_TIMESTAMP
             )""")
+        cur.execute("""CREATE TABLE IF NOT EXISTS task_field_types (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            field_name TEXT
+            )""")
         cur.execute("""CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             id_user INTEGER,
+            task_field_type INTEGER DEFAULT NULL,
             task TEXT,
-            status INTEGER,
+            status INTEGER DEFAULT 1,
             datetime_creation DEFAULT CURRENT_TIMESTAMP,
-            datetime_completion TEXT
+            datetime_completion TEXT,
+            FOREIGN KEY (task_field_type) REFERENCES task_field_types (field_name)
             )""")
         cur.execute("""CREATE TABLE IF NOT EXISTS emails (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,28 +92,26 @@ def start_message(message):
 @bot.message_handler(commands=['email'])
 def task_completed(message):
     keyboard = types.InlineKeyboardMarkup()
-    key_small = types.InlineKeyboardButton(text='Близко', callback_data='search_place 1')
-    key_middle= types.InlineKeyboardButton(text='Средне', callback_data='search_place 2')
-    key_big= types.InlineKeyboardButton(text='Далеко', callback_data='search_place 3')
-    keyboard.add(key_small, key_middle, key_big)
-    bot.send_message(message.from_user.id, text="Какое расстояние?", reply_markup=keyboard)
-
-
-@bot.message_handler(commands=['search'])
-def task_completed(message):
-    bot.send_message(message.chat.id, 'Старт поиска')
-    search_people()
-    bot.send_message(message.chat.id, 'Поиск закончен')
+    key_1 = types.InlineKeyboardButton(text="Start search", callback_data='search search')
+    key_2= types.InlineKeyboardButton(text="Email", callback_data='search email')
+    keyboard.add(key_1, key_2)
+    bot.send_message(message.from_user.id, text="What we will do?", reply_markup=keyboard)
 
 
 @bot.message_handler(content_types=['text'])
 def take_text(message):
     if message.text.lower() == commands[0].lower():
-        if message.chat.id == int(config.telegram_my_id):
-            bot.send_message(message.chat.id, 'Введи текст задачи')
-            bot.register_next_step_handler(message, set_task)
-        else:
-            bot.send_message(message.chat.id, 'Сорян, бот для избранных ;)')
+        inline_keys = []
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"SELECT id, field_name FROM task_field_types")
+            for record in cur:
+                inline_keys.append(types.InlineKeyboardButton(text=record[1], callback_data=f"task_field_type {record[0]}"))
+        keyboard = types.InlineKeyboardMarkup()
+        # inline_keys.append(types.InlineKeyboardButton(text='Новый тип заданий', callback_data='new_type_field_task'))
+        for key in inline_keys:
+            keyboard.add(key)
+        bot.send_message(message.from_user.id, text="Введи тип задания", reply_markup=keyboard)
     elif message.text.lower() == commands[1].lower():
         bot.send_message(message.chat.id, 'Введи ID задачи')
         bot.register_next_step_handler(message, change_task)
@@ -162,7 +140,9 @@ def take_text(message):
 
 @bot.callback_query_handler(func=lambda call:True)
 def callback_query(call):
-    if "list_tasks" in call.data:
+    if "task_field_type" in call.data:
+        set_task(call.message, call.data)
+    elif "list_tasks" in call.data:
         list_tasks(call.message, call.data)
     elif call.data == "new_type_routine":
         set_type_routine(call.message)
@@ -170,7 +150,7 @@ def callback_query(call):
         set_routine(call.message, call.data)
     elif "routine_set_status" in call.data:
         set_routine_status(call.message, call.data)
-    elif "search_place" in call.data:
+    elif "search" in call.data:
         access_check(call.message, call.data)
 
 
@@ -188,7 +168,7 @@ def add_routine_type(message):
             bot.send_message(message.chat.id, text=f"Новый тип рутины ({message.text}) добавлен", reply_markup  = keyboard_main)
         
     except:
-        logging.warning("func add_routine - error", exc_info=True)
+        logging.critical("func add_routine - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
 
 
@@ -262,21 +242,42 @@ def set_user(message):
 
 
 # tasks
-def set_task(message):
-    with sq.connect(config.database) as con:
-        cur = con.cursor()
-        cur.execute(f"INSERT INTO tasks (id_user, task, status) VALUES ({message.chat.id}, '{message.text}', {1})")
-        bot.send_message(message.chat.id, 'Задача создана')
+def add_type_field_task():
+    pass
 
 
+def set_task(message, call_data):
+    try:
+        set_type_field = call_data.split(" ")[1] 
+        bot.send_message(message.chat.id, text="Введи текст задачи")
+        bot.register_next_step_handler(message, lambda m: add_task(m, set_type_field))
+    except:
+        logging.critical("func set_task - error", exc_info=True)
+        bot.send_message(message.chat.id, 'Некорректно')
+
+
+def add_task(message, set_type_field):
+    try:
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"""INSERT INTO tasks (id_user, task_field_type, task)
+                        VALUES ((SELECT id FROM users WHERE telegram_id = {message.chat.id}), {set_type_field}, '{message.text}')
+                        """)
+            bot.send_message(message.chat.id, 'Задача создана')
+    except:
+        logging.critical("func add_task - error", exc_info=True)
+        bot.send_message(message.chat.id, 'Некорректно')
+
+
+# !!!add task_type with question of type
 def list_tasks(message, call_data):
     try:
         task_status = call_data.split(" ")[1]
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"SELECT * FROM tasks WHERE id_user = {message.chat.id} AND status = {task_status}")
-            for record in cur:
-                bot.send_message(message.chat.id, f"{record[0]}: {record[2]}")
+            cur.execute(f"SELECT id, task FROM tasks WHERE id_user = {message.chat.id} AND status = {task_status}")
+            for id, text in cur:
+                bot.send_message(message.chat.id, f"{id}: {text}")
     except:
         logging.warning("func list_tasks - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
@@ -294,95 +295,6 @@ def change_task(message):
         bot.send_message(message.chat.id, 'ID не верен')
 
 
-def search_people():
-    search_db = "people.db"
-    search_url = os.getenv('SEARCH_URL')
-
-    def create_db():
-        with sq.connect(search_db) as con:
-            cur = con.cursor()
-            cur.execute("DROP TABLE IF EXISTS people")
-            cur.execute("""CREATE TABLE IF NOT EXISTS people (
-                id INTEGER PRIMARY KEY,
-                place TEXT,
-                name TEXT,
-                age INTEGER,
-                hands INTEGER,
-                height INTEGER,
-                weight INTEGER,
-                al TEXT,
-                price INTEGER
-                )""")
-
-
-    def get_source_html(url):
-
-        with sq.connect(search_db) as con:
-            cur = con.cursor()
-
-            try:
-                driver.get(url)
-                time.sleep(random.randint(0,3))
-                html = driver.page_source
-                soup = BeautifulSoup(html, "lxml")
-                count_lists = soup.find("div", class_="pagingList").find_all("a")
-                count = int(count_lists[-2].text)
-
-                for i in range(count+1):
-                    url_new = re.split('index=', url, maxsplit=0)
-                    url_new_2 = f'{url_new[0]}index={i}{url_new[1][1:]}'
-                    driver.get(url_new_2)
-                    time.sleep(random.randint(0,10))
-                    html = driver.page_source
-                    soup = BeautifulSoup(html, "lxml")        
-                    cards = soup.find_all("div", class_="adp_edin_ank")
-                    
-                    for card in cards:
-                        id = card.find("a", class_="metro_title_link").get("href")
-                        id_new = int(re.sub(r'\D', '', id))
-                        place = card.find("a", class_="metro_title").text
-                        name = card.find("a", class_="metro_title_link").text
-                        name_new = re.sub(r'\W', '', name)
-                        age = card.find("div", class_="txtparam").find("span")
-                        age_new = int(re.sub(r'\D', '', str(age)))
-                        hands = card.find("div", class_="txtparam").find("span").find_next_sibling().find_next_sibling()
-                        hands_new = int(re.sub(r'\D', '', str(hands)))
-                        height = card.find("div", class_="txtparam").find_next_sibling().find("span")
-                        height_new = int(re.sub(r'\D', '', str(height)))
-                        weight = card.find("div", class_="txtparam").find_next_sibling().find("span").find_next_sibling().find_next_sibling()
-                        weight_new = int(re.sub(r'\D', '', str(weight)))
-                        al = card.find("span", class_="stAuthor").text
-                        price = card.find("span", class_="txtpricehour").find_next_sibling().text
-
-                        try:
-                            price_new = "".join(price[:6].split())
-                            if price_new[-1] != '0':
-                                price_new = price_new[:-1]
-                            price_new = int(price_new)
-                        except Exception as _ex:
-                            logging.warning("Price not valid", exc_info=True)
-                            price_new = 0
-                        
-                        val = (id_new, place, name_new, age_new, hands_new, height_new, weight_new, al, price_new)
-
-                        try:
-                            cur.execute("INSERT INTO people VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)", val)
-                        
-                        except Exception as _ex:
-                            logging.warning("INSERT INTO people - error", exc_info=True)
-
-            except Exception as _ex:
-                logging.critical("func get_source_html - error", exc_info=True)
-
-            # finally:
-            #     driver.close()
-            #     driver.quit()
-
-
-    create_db()
-    get_source_html(search_url)
-
-
 def access_check(message, call_data):
     try:
         date_now = datetime.date.today()
@@ -395,200 +307,13 @@ def access_check(message, call_data):
             if status == 0:
                 logging.info(f"access_check: access successful: {status}")
                 bot.send_message(message.chat.id, text="Допуск получен")
-                search(message, call_data)
+                socket_client(config.socket_server, config.socket_port, config.coding, call_data.split(" ")[1])
             else:
                 logging.info(f"access_check: access unsuccessful: {status}")
                 bot.send_message(message.chat.id, text="Допуск не получен")
     except:
         logging.warning("func access_check - error", exc_info=True)
         bot.send_message('Некорректно')
-
-
-def search(message, call_data):
-    bot.send_message(message.chat.id, 'Старт формирования сообщений')
-    search_1 = os.getenv('SEARCH')
-    profiles = []
-    places_list = []
-    place = call_data.split(" ")[1]
-
-
-    def send_email(email_data):
-        server = smtplib.SMTP(config.smtp_server, config.smtp_port)
-        server.starttls()
-
-        email_text = ""
-        for text in email_data:
-            email_text += f"{text}: {email_data[text]}\n"
-        message = MIMEMultipart()
-        message["From"] = config.sender_email
-        message["To"] = config.recipient_email
-        message["Subject"] = email_data['Мт']
-        part = MIMEText(email_text)
-        message.attach(part)
-        script_dir = os.path.dirname(__file__)
-        folder = "images"
-        abs_file_path = os.path.join(script_dir, folder)
-        images = os.listdir(abs_file_path)
-        for count, image in enumerate(images):
-            message.attach(MIMEText(f'<img src="cid:image{count}">', 'html'))
-            with open(f"images/{image}", "rb") as img:
-                image_file = MIMEImage(img.read())
-                image_file.add_header("Content-ID", f"<image{count}>")
-                message.attach(image_file)
-
-        try:
-            server.login(config.sender_email, config.sender_email_password)
-            server.sendmail(config.sender_email, config.recipient_email, message.as_string())
-        except Exception as _ex:
-            logging.critical("send email - error", exc_info=True)
-        finally:
-            server.quit()
-
-
-    def search_data_profile(result):
-
-        number_profile = result[0]
-        url_search = os.getenv("URL_PROFILE")
-        new_url = f"{url_search}a{number_profile}.htm"
-
-        try:
-            data = {}
-            data['Номер'] = result[0]
-            data['Мт'] = result[1]
-            data['Им'] = result[2]
-            data['Вз'] = result[3]
-            data['Гр'] = result[4]
-            data['Рс'] = result[5]
-            data['Вс'] = result[6]
-            data['Ан'] = result[7]
-            data['Цн'] = result[8]
-            driver.get(new_url)
-            time.sleep(random.randint(0,3))
-            html = driver.page_source
-            soup = BeautifulSoup(html, "lxml")
-            tel = soup.find("nobr", string=re.compile("Телефон")).find_parent("p", class_="t").find_next().find_next().find("a")
-            data['Телефон'] = tel.text
-            logging.info("Telephone number valid")
-            try:
-                time_job = tel.find_next_sibling().text
-            except:
-                time_job = None
-            data['Время работы'] = time_job
-            logging.info("Time job valid")
-            try:
-                text = soup.find("p", id="txt_top").find("i")
-                data['Описание'] = text.text
-            except:
-                pass
-            logging.info("Description valid")
-            contacts = soup.find("div", string=re.compile("Контактов"))
-            if contacts:
-                data['Контакты'] = contacts.text
-                logging.info("Contacts valid")
-                text_1 = contacts.find_parent().find_parent().find_next_sibling().find("div")
-            else:
-                try:
-                    text_1 = soup.find("td", string=re.compile("Выезд")).find_parent().find_next_sibling().find_next_sibling().find("div", class_="ar13")
-                except:
-                    logging.info(f"{data['Номер']} extra info - error")
-            try:
-                data['Доп. инфо'] = text_1.text
-            except:
-                pass
-            logging.info("Description_2 valid")
-            services = soup.find("table", class_="uslugi_block").find_all("a", class_="menu")
-            price = 0
-            for service in services:
-                result = service.find_next_sibling().find_next_sibling()
-                try:
-                    result_text = result.text
-                    if result_text == "":
-                        price = "Есть"
-                    else:
-                        price = result_text
-                except:
-                    price = "Есть"          
-                data[service.text] = price
-            add_services = soup.find_all("div", class_="success_only")
-            try:
-                for add_service in add_services:
-                    try:
-                        serv_result = add_service.text.split(":", 1)
-                        data[serv_result[0]] = serv_result[1]
-                    except:
-                        data[add_service.text] = "Есть"
-                logging.info("Services valid")
-            except:
-                logging.warning("Services not valid", exc_info=True)
-
-            
-            script_dir = os.path.dirname(__file__)
-            folder = "images"
-            abs_file_path = os.path.join(script_dir, folder)
-            try:
-                shutil.rmtree(abs_file_path)
-            except:
-                pass
-            os.mkdir(folder)
-            photos = soup.find("div", class_="highslide-gallery").find_all("img")
-            for count, photo in enumerate(photos):
-                photo_url = f"{url_search[:-1]}{photo['src']}"
-                driver.get(photo_url)
-                time.sleep(random.randint(0,3))
-                driver.save_screenshot(f"images/{count}.png")
-            return data
-
-        except Exception:
-            logging.critical("func get_source_html - error", exc_info=True)
-
-
-    def random_output(data):
-        try:
-            random_variants = random.sample(data, 5)
-        except Exception as _ex:
-            logging.error(f"random_variants in = {data}", exc_info=True)
-        try:
-            for result in random_variants:
-                send_email(search_data_profile(result))
-            bot.send_message(message.chat.id, 'Письма отправлены')
-        except:
-            bot.send_message(message.chat.id, 'Письма НЕ отправлены')
-            logging.error(f"{result[0]} sends email - error", exc_info=True)
-        # finally:
-        #     driver.close()
-        #     driver.quit()
-
-
-    def places_output(distance):
-        with sq.connect(config.db_search) as con:
-            cur = con.cursor()
-            cur.execute("SELECT place FROM places WHERE (distance BETWEEN 1 AND ?)", (distance,))
-            for row in cur:
-                places_list.append(row[0])
-
-    
-    def filter(search_place, visit_anks):
-        with sq.connect(config.db_search) as con:
-            cur = con.cursor()
-            cur.execute(search_1)
-            places_output(search_place)
-            for result in cur:
-                if (result[1] in places_list) and (result[0] not in visit_anks): 
-                    profiles.append(result)
-        random_output(profiles)
-
-
-    def visits():
-        visit_anks = []
-        with sq.connect(config.db_search) as con:
-            cur = con.cursor()
-            cur.execute("SELECT number_profile FROM profiles")
-            for row in cur:
-                visit_anks.append(row[0])
-        return visit_anks
-
-
-    filter(place, visits())
 
 
 @bot.message_handler(commands=['reminder'])
@@ -649,9 +374,18 @@ def check_email(imap_server, email_login, email_password):
         mailBox.logout()
 
 
+def socket_client(server, port, coding, data_send):
+    sock = socket.socket()
+    sock.connect((server, port))
+    sock.send(data_send.encode(coding))
+    # data = sock.recv(1024)
+    # print(data.decode(coding))
+    sock.close()
+
+
 def daily_schedule():
-    schedule.every().hour.until(datetime.timedelta(hours=13)).do(preparation_emails)
-    logging.info(f"Schedule 'every_hour' every hour starts")
+    # schedule.every().hour.until(datetime.timedelta(hours=13)).do(preparation_emails)
+    preparation_emails()
     routine_daily_check()
 
 
