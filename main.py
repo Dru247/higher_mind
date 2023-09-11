@@ -107,8 +107,8 @@ def take_text(message):
             cur.execute(f"SELECT id, field_name FROM task_field_types")
             for record in cur:
                 inline_keys.append(types.InlineKeyboardButton(text=record[1], callback_data=f"task_field_type {record[0]}"))
+        inline_keys.append(types.InlineKeyboardButton(text='Новый тип заданий', callback_data='new_type_field_task'))
         keyboard = types.InlineKeyboardMarkup()
-        # inline_keys.append(types.InlineKeyboardButton(text='Новый тип заданий', callback_data='new_type_field_task'))
         for key in inline_keys:
             keyboard.add(key)
         bot.send_message(message.from_user.id, text="Введи тип задания", reply_markup=keyboard)
@@ -116,11 +116,16 @@ def take_text(message):
         bot.send_message(message.chat.id, 'Введи ID задачи')
         bot.register_next_step_handler(message, change_task)
     elif message.text.lower() == commands[2].lower():
+        inline_keys = []
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"SELECT id, field_name FROM task_field_types")
+            for record in cur:
+                inline_keys.append(types.InlineKeyboardButton(text=record[1], callback_data=f"list_task_type {record[0]}"))
         keyboard = types.InlineKeyboardMarkup()
-        key_new = types.InlineKeyboardButton(text='Не выполненные', callback_data='list_tasks 1')
-        key_old= types.InlineKeyboardButton(text='Выполненные', callback_data='list_tasks 0')
-        keyboard.add(key_new, key_old)
-        bot.send_message(message.from_user.id, text="Какие задания отобразить?", reply_markup=keyboard)
+        for key in inline_keys:
+            keyboard.add(key)
+        bot.send_message(message.from_user.id, text="Какой тип заданий отобразить?", reply_markup=keyboard)
     elif message.text.lower() == commands[3].lower():
         inline_keys = []
         with sq.connect(config.database) as con:
@@ -142,7 +147,7 @@ def take_text(message):
 def callback_query(call):
     if "task_field_type" in call.data:
         set_task(call.message, call.data)
-    elif "list_tasks" in call.data:
+    elif "list_task_type" in call.data:
         list_tasks(call.message, call.data)
     elif call.data == "new_type_routine":
         set_type_routine(call.message)
@@ -152,6 +157,8 @@ def callback_query(call):
         set_routine_status(call.message, call.data)
     elif "search" in call.data:
         access_check(call.message, call.data)
+    elif "new_type_field_task" in call.data:
+        set_type_field_task(call.message)
 
 
 # routine
@@ -242,8 +249,21 @@ def set_user(message):
 
 
 # tasks
-def add_type_field_task():
-    pass
+def set_type_field_task(message):
+    bot.send_message(message.chat.id, text="Введи новый тип заданий")
+    bot.register_next_step_handler(message, add_type_field_task)
+
+
+def add_type_field_task(message):
+    try:
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"INSERT INTO task_field_types(field_name) VALUES('{message.text}')")
+            bot.send_message(message.chat.id, text=f"Новый тип заданий ({message.text}) добавлен", reply_markup  = keyboard_main)
+        
+    except:
+        logging.critical("func add_routine - error", exc_info=True)
+        bot.send_message(message.chat.id, 'Некорректно')
 
 
 def set_task(message, call_data):
@@ -269,13 +289,13 @@ def add_task(message, set_type_field):
         bot.send_message(message.chat.id, 'Некорректно')
 
 
-# !!!add task_type with question of type
 def list_tasks(message, call_data):
+    logging.info(f"LIST TASK {call_data}")
     try:
-        task_status = call_data.split(" ")[1]
+        task_type = call_data.split(" ")[1]
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"SELECT id, task FROM tasks WHERE id_user = {message.chat.id} AND status = {task_status}")
+            cur.execute(f"SELECT id, task FROM tasks WHERE id_user = (SELECT id FROM users WHERE telegram_id = {message.chat.id}) AND status = 1 AND task_field_type = {task_type}")
             for id, text in cur:
                 bot.send_message(message.chat.id, f"{id}: {text}")
     except:
