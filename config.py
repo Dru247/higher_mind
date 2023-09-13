@@ -8,7 +8,6 @@ load_dotenv()
 telegram_token = os.getenv('TELEGRAM_TOKEN')
 telegram_my_id = os.getenv('TELEGRAM_MY_ID')
 database = "main.db"
-work_day_start = "07:00"
 timezone_my = "Europe/Moscow"
 coding = "utf-8"
 
