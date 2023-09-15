@@ -101,39 +101,6 @@ def task_completed(message):
     bot.send_message(message.from_user.id, text="What we will do?", reply_markup=keyboard)
 
 
-@bot.message_handler(content_types=['text'])
-def take_text(message):
-    if message.text.lower() == commands[0].lower():
-        inline_keys = []
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            cur.execute(f"SELECT id, field_name FROM task_field_types")
-            for record in cur:
-                inline_keys.append(types.InlineKeyboardButton(text=record[1], callback_data=f"task_field_type {record[0]}"))
-        inline_keys.append(types.InlineKeyboardButton(text='Новый тип заданий', callback_data='new_type_field_task'))
-        keyboard = types.InlineKeyboardMarkup()
-        for key in inline_keys:
-            keyboard.add(key)
-        bot.send_message(message.from_user.id, text="Введи тип задания", reply_markup=keyboard)
-    elif message.text.lower() == commands[1].lower():
-        bot.send_message(message.chat.id, 'Введи ID задачи')
-        bot.register_next_step_handler(message, change_task)
-    elif message.text.lower() == commands[2].lower():
-        inline_keys = []
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            cur.execute(f"SELECT id, field_name FROM task_field_types")
-            for record in cur:
-                inline_keys.append(types.InlineKeyboardButton(text=record[1], callback_data=f"list_task_type {record[0]}"))
-        keyboard = types.InlineKeyboardMarkup()
-        for key in inline_keys:
-            keyboard.add(key)
-        bot.send_message(message.from_user.id, text="Какой тип заданий отобразить?", reply_markup=keyboard)
-    else:
-        logging.warning(f"func take_text: not understend question: {message.text}")
-        bot.send_message(message.chat.id, 'Я не понимаю, что вы говорите')
-
-
 @bot.callback_query_handler(func=lambda call:True)
 def callback_query(call):
     if "task_field_type" in call.data:
@@ -244,7 +211,7 @@ def add_task(message, set_type_field):
         logging.critical("func add_task - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
 
-
+# need to add question about frequency_type
 def list_tasks(message, call_data):
     logging.info(f"LIST TASK {call_data}")
     try:
@@ -404,6 +371,39 @@ def reminder_message(message):
 
     # def send_reminder(chat_id, reminder_name):
     #     bot.send_message(chat_id, 'Время получить ваше напоминание "{}"!'.format(reminder_name))
+
+
+@bot.message_handler(content_types=['text'])
+def take_text(message):
+    if message.text.lower() == commands[0].lower():
+        inline_keys = []
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"SELECT id, field_name FROM task_field_types")
+            for record in cur:
+                inline_keys.append(types.InlineKeyboardButton(text=record[1], callback_data=f"task_field_type {record[0]}"))
+        inline_keys.append(types.InlineKeyboardButton(text='Новый тип заданий', callback_data='new_type_field_task'))
+        keyboard = types.InlineKeyboardMarkup()
+        for key in inline_keys:
+            keyboard.add(key)
+        bot.send_message(message.from_user.id, text="Введи тип задания", reply_markup=keyboard)
+    elif message.text.lower() == commands[1].lower():
+        bot.send_message(message.chat.id, 'Введи ID задачи')
+        bot.register_next_step_handler(message, change_task)
+    elif message.text.lower() == commands[2].lower():
+        inline_keys = []
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"SELECT id, field_name FROM task_field_types")
+            for record in cur:
+                inline_keys.append(types.InlineKeyboardButton(text=record[1], callback_data=f"list_task_type {record[0]}"))
+        keyboard = types.InlineKeyboardMarkup()
+        for key in inline_keys:
+            keyboard.add(key)
+        bot.send_message(message.from_user.id, text="Какой тип заданий отобразить?", reply_markup=keyboard)
+    else:
+        logging.warning(f"func take_text: not understend question: {message.text}")
+        bot.send_message(message.chat.id, 'Я не понимаю, что вы говорите')
 
 
 if __name__ == '__main__':
