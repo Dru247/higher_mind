@@ -20,14 +20,13 @@ bot = telebot.TeleBot(config.telegram_token)
 
 commands = ["Создать задание",
             "Выполнить задание",
-            "Список заданий"
-        ]
+            "Список заданий"]
 
 keyboard_main = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
 
-item_1=types.KeyboardButton(commands[0])
-item_2=types.KeyboardButton(commands[1])
-item_3=types.KeyboardButton(commands[2])
+item_1 = types.KeyboardButton(commands[0])
+item_2 = types.KeyboardButton(commands[1])
+item_3 = types.KeyboardButton(commands[2])
 keyboard_main.row(item_1, item_2, item_3)
 
 
@@ -57,13 +56,15 @@ def create_db():
             status INTEGER DEFAULT 1,
             datetime_creation DEFAULT CURRENT_TIMESTAMP,
             datetime_completion TEXT,
-            FOREIGN KEY (task_field_type) REFERENCES task_field_types (field_name),
-            FOREIGN KEY (frequency_type) REFERENCES task_frequency_types (name)      
+            FOREIGN KEY (task_field_type)
+            REFERENCES task_field_types (field_name),
+            FOREIGN KEY (frequency_type)
+            REFERENCES task_frequency_types (name)
             )""")
         cur.execute("""CREATE TABLE IF NOT EXISTS dates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT UNIQUE
-            )""")    
+            )""")
         cur.execute("""CREATE TABLE IF NOT EXISTS routine (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date_id INTEGER,
@@ -79,29 +80,39 @@ def create_db():
             unseen_status INTEGER,
             FOREIGN KEY (user) REFERENCES users (id)
             )""")
-        
+
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    bot.send_message(message.chat.id, f'Привет! Напиши имя')
+    bot.send_message(message.chat.id, text="Привет! Напиши имя")
     bot.register_next_step_handler(message, set_user)
 
 
 @bot.message_handler(commands=['help', 'commands'])
-def start_message(message):
-    bot.send_message(message.chat.id, f'Привет! Лови клавиатуру', reply_markup  = keyboard_main)
+def help_message(message):
+    bot.send_message(
+        message.chat.id,
+        text="Привет! Лови клавиатуру",
+        reply_markup=keyboard_main)
 
 
 @bot.message_handler(commands=['email'])
 def task_completed(message):
     keyboard = types.InlineKeyboardMarkup()
-    key_1 = types.InlineKeyboardButton(text="Start search", callback_data='search search')
-    key_2= types.InlineKeyboardButton(text="Email", callback_data='search email')
+    key_1 = types.InlineKeyboardButton(
+        text="Start search",
+        callback_data='search search')
+    key_2 = types.InlineKeyboardButton(
+        text="Email",
+        callback_data='search email')
     keyboard.add(key_1, key_2)
-    bot.send_message(message.from_user.id, text="What we will do?", reply_markup=keyboard)
+    bot.send_message(
+        message.from_user.id,
+        text="What we will do?",
+        reply_markup=keyboard)
 
 
-@bot.callback_query_handler(func=lambda call:True)
+@bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     if "task_field_type" in call.data:
         set_task(call.message, call.data)
@@ -121,10 +132,11 @@ def routine_check():
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"""SELECT routine.id, task_id, task
-                        FROM routine
-                        JOIN tasks ON routine.task_id = tasks.id
-                        WHERE date_id = (SELECT id FROM dates WHERE date = date('now')) AND success = {0}
-                        """)
+                FROM routine
+                JOIN tasks ON routine.task_id = tasks.id
+                WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+                AND success = {0}
+                """)
             results = cur.fetchall()
             if results:
                 logging.info(f"func routine_daily_check_2: exist daily routine ({results})")
@@ -132,7 +144,7 @@ def routine_check():
                     routine_id = result[0]
                     keyboard = types.InlineKeyboardMarkup()
                     key_1 = types.InlineKeyboardButton(text='Выполнено', callback_data=f"routine_set_status {routine_id}1")
-                    key_2= types.InlineKeyboardButton(text='Не выполнено', callback_data=f"routine_set_status {routine_id}0")
+                    key_2 = types.InlineKeyboardButton(text='Не выполнено', callback_data=f"routine_set_status {routine_id}0")
                     keyboard.add(key_1, key_2)
                     bot.send_message(config.telegram_my_id, text=f"Задание: (ID:{result[1]}) {result[2]}", reply_markup=keyboard)
             else:
@@ -242,9 +254,7 @@ def access_check(message, call_data):
     try:    
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"SELECT id FROM routine WHERE date_id BETWEEN (SELECT id FROM dates WHERE date = date('now','-7 day')) AND (SELECT id FROM dates WHERE date = date('now')) AND success = {0}")
-            # cur.execute(f"""SELECT EXISTS(SELECT success FROM routine
-            #             WHERE (date_id BETWEEN (SELECT id FROM dates WHERE date = date('now','-7 day')) AND (SELECT id FROM dates WHERE date = date('now','-7 day'))) AND success = {0})""")
+            cur.execute(f"SELECT id FROM routine WHERE date_id BETWEEN (SELECT id FROM dates WHERE date = date('now','-8 day')) AND (SELECT id FROM dates WHERE date = date('now','-1 day')) AND success = {0}")
             result = cur.fetchone()
             if result is None:
                 logging.info(f"access_check: access successful: {result}")
@@ -322,7 +332,7 @@ def morning_business():
                     """)
         bot.send_message(config.telegram_my_id, text=f"Сегодня у тебя следующие задания:")
         for result in cur:
-            bot.send_message(config.telegram_my_id, text=f"(ID:{result[0]}) {result[1]}")
+            bot.send_message(config.telegram_my_id, text=f"{result[1]}")
 
 
 def planning():
@@ -331,9 +341,12 @@ def planning():
 
 
 def schedule_bigger():
-    schedule.every().day.at("07:00", timezone(config.timezone_my)).do(morning_business)
-    schedule.every().day.at("22:00", timezone(config.timezone_my)).do(planning)
-    logging.info(f"Schedule 'every_day' starts")
+    schedule.every().day.at(
+        "07:00",
+        timezone(config.timezone_my)
+        ).do(morning_business)
+    schedule.every().day.at("21:30", timezone(config.timezone_my)).do(planning)
+    logging.info("Schedule 'every_day' starts")
 
     while True:
         schedule.run_pending()
@@ -370,7 +383,8 @@ def reminder_message(message):
     #         bot.send_message(message.chat.id, 'Вы ввели неверный формат даты и времени, попробуйте ещё раз')
 
     # def send_reminder(chat_id, reminder_name):
-    #     bot.send_message(chat_id, 'Время получить ваше напоминание "{}"!'.format(reminder_name))
+    #     bot.send_message(chat_id,
+    #           'Время получить ваше напоминание "{}"!'.format(reminder_name))
 
 
 @bot.message_handler(content_types=['text'])
@@ -379,14 +393,22 @@ def take_text(message):
         inline_keys = []
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"SELECT id, field_name FROM task_field_types")
+            cur.execute("SELECT id, field_name FROM task_field_types")
             for record in cur:
-                inline_keys.append(types.InlineKeyboardButton(text=record[1], callback_data=f"task_field_type {record[0]}"))
-        inline_keys.append(types.InlineKeyboardButton(text='Новый тип заданий', callback_data='new_type_field_task'))
+                inline_keys.append(
+                    types.InlineKeyboardButton(
+                        text=record[1],
+                        callback_data=f"task_field_type {record[0]}"))
+        inline_keys.append(types.InlineKeyboardButton(
+                                text='Новый тип заданий',
+                                callback_data='new_type_field_task'))
         keyboard = types.InlineKeyboardMarkup()
         for key in inline_keys:
             keyboard.add(key)
-        bot.send_message(message.from_user.id, text="Введи тип задания", reply_markup=keyboard)
+        bot.send_message(
+            message.from_user.id,
+            text="Введи тип задания",
+            reply_markup=keyboard)
     elif message.text.lower() == commands[1].lower():
         bot.send_message(message.chat.id, 'Введи ID задачи')
         bot.register_next_step_handler(message, change_task)
@@ -394,16 +416,23 @@ def take_text(message):
         inline_keys = []
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"SELECT id, field_name FROM task_field_types")
+            cur.execute("SELECT id, field_name FROM task_field_types")
             for record in cur:
-                inline_keys.append(types.InlineKeyboardButton(text=record[1], callback_data=f"list_task_type {record[0]}"))
+                inline_keys.append(
+                    types.InlineKeyboardButton(
+                        text=record[1],
+                        callback_data=f"list_task_type {record[0]}"))
         keyboard = types.InlineKeyboardMarkup()
         for key in inline_keys:
             keyboard.add(key)
-        bot.send_message(message.from_user.id, text="Какой тип заданий отобразить?", reply_markup=keyboard)
+        bot.send_message(
+            message.from_user.id,
+            text="Какой тип заданий отобразить?",
+            reply_markup=keyboard)
     else:
-        logging.warning(f"func take_text: not understend question: {message.text}")
-        bot.send_message(message.chat.id, 'Я не понимаю, что вы говорите')
+        logging.warning(
+            f"func take_text: not understend question: {message.text}")
+        bot.send_message(message.chat.id, 'Я не понимаю, к сожалению')
 
 
 if __name__ == '__main__':
