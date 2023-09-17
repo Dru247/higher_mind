@@ -13,8 +13,11 @@ from pytz import timezone
 from telebot import types
 
 
-logging.basicConfig(level=logging.INFO, filename="logs.log", filemode="a",
-                    format="%(asctime)s %(levelname)s %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    filename="logs.log",
+    filemode="a",
+    format="%(asctime)s %(levelname)s %(message)s")
 
 bot = telebot.TeleBot(config.telegram_token)
 
@@ -311,7 +314,7 @@ def add_date():
         cur.execute("INSERT OR IGNORE INTO dates (date) VALUES (date('now','+1 day'))")
         con.commit()
         cur.execute("SELECT id FROM tasks WHERE frequency_type = 1")
-        for result in cur:
+        for result in cur.fetchall():
             cur.execute(f"INSERT INTO routine (date_id, task_id) VALUES ((SELECT id FROM dates WHERE date = date('now','+1 day')), {result[0]})")
 
 
