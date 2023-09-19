@@ -99,7 +99,7 @@ def help_message(message):
         reply_markup=keyboard_main)
 
 
-@bot.message_handler(commands=['email'])
+@bot.message_handler(commands=['search'])
 def task_completed(message):
     keyboard = types.InlineKeyboardMarkup()
     key_1 = types.InlineKeyboardButton(
@@ -108,7 +108,14 @@ def task_completed(message):
     key_2 = types.InlineKeyboardButton(
         text="Email",
         callback_data='search email')
-    keyboard.add(key_1, key_2)
+    key_3 = types.InlineKeyboardButton(
+        text="Add people",
+        callback_data='emailer_add people')
+    key_4 = types.InlineKeyboardButton(
+        text="Add event",
+        callback_data='emailer_add event')
+    
+    keyboard.add(key_1, key_2, key_3, key_4)
     bot.send_message(
         message.from_user.id,
         text="What we will do?",
@@ -127,6 +134,8 @@ def callback_query(call):
         access_check(call.message, call.data)
     elif "new_type_field_task" in call.data:
         set_type_field_task(call.message)
+    elif "emailer_add" in call.data:
+        search_add(call.message, call.data)
 
 
 # routine
@@ -270,6 +279,22 @@ def access_check(message, call_data):
     except:
         logging.warning("func access_check - error", exc_info=True)
         bot.send_message(message.chat.id, text="Некорректно")
+
+
+def search_add(message, call_data):
+    data = call_data.split()
+    if data[1] == "people":
+        bot.send_message(
+            message.chat.id,
+            text = "Введи данные в формате (П.И.Д.С.А.М.Т.ВУсСвВЛГрПМКАлААм(12)(8))"
+            )
+        bot.register_next_step_handler(message, lambda m: socket_client(config.socket_server, config.socket_port, config.coding, f"add_new: {m.text}"))
+    elif data[1] == "event":
+        bot.send_message(
+            message.chat.id,
+            text = "Введи данные в формате (Ч.Д.С)"
+            )
+        bot.register_next_step_handler(message, lambda m: socket_client(config.socket_server, config.socket_port, config.coding, f"add_event: {m.text}"))
 
 
 # Email unseen messages reminder
