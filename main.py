@@ -22,67 +22,13 @@ logging.basicConfig(
 bot = telebot.TeleBot(config.telegram_token)
 
 commands = ["Создать задание",
-            "Выполнить задание",
             "Список заданий"]
 
-keyboard_main = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+keyboard_main = types.ReplyKeyboardMarkup(resize_keyboard=True)
 
 item_1 = types.KeyboardButton(commands[0])
 item_2 = types.KeyboardButton(commands[1])
-item_3 = types.KeyboardButton(commands[2])
-keyboard_main.row(item_1, item_2, item_3)
-
-
-def create_db():
-    with sq.connect(config.database) as con:
-        cur = con.cursor()
-        cur.execute("""CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            first_name TEXT,
-            telegram_id INTEGER UNIQUE,
-            datetime_creation DEFAULT CURRENT_TIMESTAMP
-            )""")
-        cur.execute("""CREATE TABLE IF NOT EXISTS task_field_types (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            field_name TEXT
-            )""")
-        cur.execute("""CREATE TABLE IF NOT EXISTS task_frequency_types (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT
-            )""")
-        cur.execute("""CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_user INTEGER,
-            task_field_type INTEGER,
-            frequency_type INTEGER,
-            task TEXT,
-            status INTEGER DEFAULT 1,
-            datetime_creation DEFAULT CURRENT_TIMESTAMP,
-            datetime_completion TEXT,
-            FOREIGN KEY (task_field_type)
-            REFERENCES task_field_types (field_name),
-            FOREIGN KEY (frequency_type)
-            REFERENCES task_frequency_types (name)
-            )""")
-        cur.execute("""CREATE TABLE IF NOT EXISTS dates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT UNIQUE
-            )""")
-        cur.execute("""CREATE TABLE IF NOT EXISTS routine (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date_id INTEGER,
-            task_id INTEGER,
-            success INTEGER DEFAULT 0,
-            FOREIGN KEY (date_id) REFERENCES dates (date),
-            FOREIGN KEY (task_id) REFERENCES tasks (task)
-            )""")
-        cur.execute("""CREATE TABLE IF NOT EXISTS emails (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user INTEGER,
-            email TEXT UNIQUE,
-            unseen_status INTEGER,
-            FOREIGN KEY (user) REFERENCES users (id)
-            )""")
+keyboard_main.row(item_1, item_2)
 
 
 @bot.message_handler(commands=['start'])
@@ -136,6 +82,10 @@ def callback_query(call):
         set_type_field_task(call.message)
     elif "emailer_add" in call.data:
         search_add(call.message, call.data)
+    elif "routine_tomorrow" in call.data:
+        add_routine_tommorow(call.message, call.data)
+    elif "routine_week" in call.data:
+        add_routine_week(call.message, call.data)
 
 
 # routine
@@ -143,7 +93,7 @@ def routine_check():
     try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"""SELECT routine.id, task_id, task
+            cur.execute(f"""SELECT routine.id, task
                 FROM routine
                 JOIN tasks ON routine.task_id = tasks.id
                 WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
@@ -158,7 +108,7 @@ def routine_check():
                     key_1 = types.InlineKeyboardButton(text='Выполнено', callback_data=f"routine_set_status {routine_id}1")
                     key_2 = types.InlineKeyboardButton(text='Не выполнено', callback_data=f"routine_set_status {routine_id}0")
                     keyboard.add(key_1, key_2)
-                    bot.send_message(config.telegram_my_id, text=f"Задание: (ID:{result[1]}) {result[2]}", reply_markup=keyboard)
+                    bot.send_message(config.telegram_my_id, text=f"Задание: {result[1]}", reply_markup=keyboard)
             else:
                 logging.info(f"func routine_daily_check_2: not exist daily routine ({results})")
                 bot.send_message(config.telegram_my_id, text=f"Сегодня заданий не было")
@@ -250,18 +200,6 @@ def list_tasks(message, call_data):
         bot.send_message(message.chat.id, 'Некорректно')
 
 
-def change_task(message):
-    try:
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            time_now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-            cur.execute(f"UPDATE tasks SET status = {0}, datetime_completion = '{time_now}' WHERE id = {int(message.text)}")
-        bot.send_message(message.chat.id, f"Задача с ID {message.text} выполнена")
-    except:
-        logging.warning("func change_task - error", exc_info=True)
-        bot.send_message(message.chat.id, 'ID не верен')
-
-
 def access_check(message, call_data):
     try:    
         with sq.connect(config.database) as con:
@@ -336,11 +274,79 @@ def check_email(imap_server, email_login, email_password):
 def add_date():
     with sq.connect(config.database) as con:
         cur = con.cursor()
-        cur.execute("INSERT OR IGNORE INTO dates (date) VALUES (date('now','+1 day'))")
-        con.commit()
         cur.execute("SELECT id FROM tasks WHERE frequency_type = 1")
         for result in cur.fetchall():
             cur.execute(f"INSERT INTO routine (date_id, task_id) VALUES ((SELECT id FROM dates WHERE date = date('now','+1 day')), {result[0]})")
+
+
+def tasks_tomorrow():
+    try:
+        date = datetime.date.today() + datetime.timedelta(days=1)
+        with sq.connect(config.database) as con:
+            results = []
+            cur = con.cursor()
+            cur.execute("""SELECT id, task FROM tasks
+                WHERE id NOT IN (SELECT task_id FROM routine
+                WHERE success = 1 AND task_field_type = 1)
+                AND frequency_type = 5
+                ORDER BY random()
+                LIMIT 5
+                """)
+            for result in cur.fetchall():
+                results.append(result)
+            cur.execute("""SELECT id, task FROM tasks
+                WHERE id NOT IN (SELECT task_id FROM routine
+                WHERE success = 1 AND task_field_type = 2)
+                AND frequency_type = 5        
+                ORDER BY random()
+                LIMIT 3
+                """)
+            for result in cur.fetchall():
+                results.append(result)
+            cur.execute("""SELECT id, task FROM tasks
+                WHERE id NOT IN (SELECT task_id FROM routine
+                WHERE success = 1 AND task_field_type = 3)
+                AND frequency_type = 5
+                ORDER BY random()
+                LIMIT 2
+                """)
+            for result in cur.fetchall():
+                results.append(result)
+            cur.execute("""SELECT id, task FROM tasks
+                WHERE id NOT IN (SELECT task_id FROM routine
+                WHERE success = 1 AND task_field_type = 4)
+                AND frequency_type = 5
+                ORDER BY random()
+                LIMIT 2
+                """)
+            for result in cur.fetchall():
+                results.append(result)
+
+            for result in results:
+                keyboard = types.InlineKeyboardMarkup()
+                keyboard.add(types.InlineKeyboardButton(
+                    text='Завтра?',
+                    callback_data=f"routine_tomorrow {result[0]};{date.isoformat()}"))
+                bot.send_message(
+                    config.telegram_my_id,
+                    text=result[1],
+                    reply_markup=keyboard)
+
+    except Exception:
+        logging.error(f"func tasks_tomorrow - error", exc_info=True)    
+
+
+def add_routine_tommorow(message, call_data):
+    try:
+        data = call_data.split()[1].split(";")
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"INSERT INTO routine (date_id, task_id) VALUES ((SELECT id FROM dates WHERE date = '{data[1]}'), {data[0]})")
+            bot.send_message(
+                message.chat.id,
+                text=f"Задача ID={data[0]} добавлена на исполнение")
+    except Exception:
+        logging.error(f"func add_routine_tommorow - error", exc_info=True)  
 
 
 def socket_client(server, port, coding, data_send):
@@ -363,17 +369,64 @@ def morning_business():
             bot.send_message(config.telegram_my_id, text=f"{result[1]}")
 
 
-def planning():
+def planning_day():
     add_date()
     routine_check()
+    tasks_tomorrow()
 
 
-def schedule_bigger():
+def planning_week():
+    try:
+        week = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+        date_now = datetime.date.today()
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            for day in range(1, 8):
+                cur.execute(f"INSERT OR IGNORE INTO dates VALUES (NULL, date('now','+{day} day'))")
+            cur.execute("""SELECT id, tasks.task
+                FROM tasks
+                WHERE frequency_type = 2
+                """)        
+            for result in cur.fetchall():
+                keyboard = types.InlineKeyboardMarkup()
+                keys = []
+                for number, day in enumerate(week):
+                    date = date_now + datetime.timedelta(days = number + 1)
+                    key = types.InlineKeyboardButton(
+                        text=day,
+                        callback_data=f"routine_week {date.isoformat()};{result[0]};{result[1]}")
+                    keys.append(key)
+                keyboard.row(*keys)
+                bot.send_message(
+                    config.telegram_my_id,
+                    text=f"Запланируй на следую неделю {result[1]}:",
+                    reply_markup=keyboard)
+    except Exception:
+        logging.error(f"func planning_week - error", exc_info=True)
+
+
+def add_routine_week(message, call_data):
+    try:
+        data = call_data.split()[1]
+        data = data.split(";")
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"""INSERT INTO routine (date_id, task_id)
+                VALUES ((SELECT id FROM dates WHERE date = {data[0]}), {data[1]})""")
+        bot.send_message(
+            message.chat.id,
+            text=f"{data[2]} запланировано на {data[0]}")
+    except Exception:
+        logging.error(f"func add_routine_week - error", exc_info=True)
+
+
+def schedule_main():
     schedule.every().day.at(
         "07:00",
         timezone(config.timezone_my)
         ).do(morning_business)
-    schedule.every().day.at("21:30", timezone(config.timezone_my)).do(planning)
+    schedule.every().day.at("21:30", timezone(config.timezone_my)).do(planning_day)
+    schedule.every().sunday.at("18:00", timezone(config.timezone_my)).do(planning_week)
     logging.info("Schedule 'every_day' starts")
 
     while True:
@@ -437,9 +490,6 @@ def take_text(message):
             message.from_user.id,
             text="Введи тип задания",
             reply_markup=keyboard)
-    elif message.text.lower() == commands[1].lower():
-        bot.send_message(message.chat.id, 'Введи ID задачи')
-        bot.register_next_step_handler(message, change_task)
     elif message.text.lower() == commands[2].lower():
         inline_keys = []
         with sq.connect(config.database) as con:
@@ -464,6 +514,5 @@ def take_text(message):
 
 
 if __name__ == '__main__':
-    create_db()
-    threading.Thread(target=schedule_bigger).start()
+    threading.Thread(target=schedule_main).start()
     bot.polling(none_stop=True)
