@@ -31,63 +31,6 @@ item_2 = types.KeyboardButton(commands[1])
 keyboard_main.row(item_1, item_2)
 
 
-@bot.message_handler(commands=['start'])
-def start_message(message):
-    bot.send_message(message.chat.id, text="Привет! Напиши имя")
-    bot.register_next_step_handler(message, set_user)
-
-
-@bot.message_handler(commands=['help', 'commands'])
-def help_message(message):
-    bot.send_message(
-        message.chat.id,
-        text="Привет! Лови клавиатуру",
-        reply_markup=keyboard_main)
-
-
-@bot.message_handler(commands=['search'])
-def task_completed(message):
-    keyboard = types.InlineKeyboardMarkup()
-    key_1 = types.InlineKeyboardButton(
-        text="Start search",
-        callback_data='search search')
-    key_2 = types.InlineKeyboardButton(
-        text="Email",
-        callback_data='search email')
-    key_3 = types.InlineKeyboardButton(
-        text="Add people",
-        callback_data='emailer_add people')
-    key_4 = types.InlineKeyboardButton(
-        text="Add event",
-        callback_data='emailer_add event')
-    
-    keyboard.add(key_1, key_2, key_3, key_4)
-    bot.send_message(
-        message.from_user.id,
-        text="What we will do?",
-        reply_markup=keyboard)
-
-
-@bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
-    if "task_field_type" in call.data:
-        set_task(call.message, call.data)
-    elif "list_task_type" in call.data:
-        list_tasks(call.message, call.data)
-    elif "routine_set_status" in call.data:
-        set_routine_status(call.message, call.data)
-    elif "search" in call.data:
-        access_check(call.message, call.data)
-    elif "new_type_field_task" in call.data:
-        set_type_field_task(call.message)
-    elif "emailer_add" in call.data:
-        search_add(call.message, call.data)
-    elif "routine_tomorrow" in call.data:
-        add_routine_tommorow(call.message, call.data)
-    elif "routine_week" in call.data:
-        add_routine_week(call.message, call.data)
-
-
 # routine
 def routine_check():
     try:
@@ -162,9 +105,13 @@ def add_type_field_task(message):
         bot.send_message(message.chat.id, 'Некорректно')
 
 
+#!!!!!!!!!
 def set_task(message, call_data):
     try:
-        set_type_field = call_data.split(" ")[1] 
+        set_type_field = call_data.split()[1]
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute("INSERT id, name FROM task_frequency_types")
         bot.send_message(message.chat.id, text="Введи текст задачи")
         bot.register_next_step_handler(message, lambda m: add_task(m, set_type_field))
     except:
@@ -468,6 +415,63 @@ def reminder_message(message):
     #           'Время получить ваше напоминание "{}"!'.format(reminder_name))
 
 
+@bot.message_handler(commands=['start'])
+def start_message(message):
+    bot.send_message(message.chat.id, text="Привет! Напиши имя")
+    bot.register_next_step_handler(message, set_user)
+
+
+@bot.message_handler(commands=['help', 'commands'])
+def help_message(message):
+    bot.send_message(
+        message.chat.id,
+        text="Привет! Лови клавиатуру",
+        reply_markup=keyboard_main)
+
+
+@bot.message_handler(commands=['search'])
+def task_completed(message):
+    keyboard = types.InlineKeyboardMarkup()
+    key_1 = types.InlineKeyboardButton(
+        text="Start search",
+        callback_data='search search')
+    key_2 = types.InlineKeyboardButton(
+        text="Email",
+        callback_data='search email')
+    key_3 = types.InlineKeyboardButton(
+        text="Add people",
+        callback_data='emailer_add people')
+    key_4 = types.InlineKeyboardButton(
+        text="Add event",
+        callback_data='emailer_add event')
+    
+    keyboard.add(key_1, key_2, key_3, key_4)
+    bot.send_message(
+        message.from_user.id,
+        text="What we will do?",
+        reply_markup=keyboard)
+
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    if "task_field_type" in call.data:
+        set_task(call.message, call.data)
+    elif "list_task_type" in call.data:
+        list_tasks(call.message, call.data)
+    elif "routine_set_status" in call.data:
+        set_routine_status(call.message, call.data)
+    elif "search" in call.data:
+        access_check(call.message, call.data)
+    elif "new_type_field_task" in call.data:
+        set_type_field_task(call.message)
+    elif "emailer_add" in call.data:
+        search_add(call.message, call.data)
+    elif "routine_tomorrow" in call.data:
+        add_routine_tommorow(call.message, call.data)
+    elif "routine_week" in call.data:
+        add_routine_week(call.message, call.data)
+
+
 @bot.message_handler(content_types=['text'])
 def take_text(message):
     if message.text.lower() == commands[0].lower():
@@ -484,13 +488,12 @@ def take_text(message):
                                 text='Новый тип заданий',
                                 callback_data='new_type_field_task'))
         keyboard = types.InlineKeyboardMarkup()
-        for key in inline_keys:
-            keyboard.add(key)
+        keyboard.row(*inline_keys)
         bot.send_message(
             message.from_user.id,
             text="Введи тип задания",
             reply_markup=keyboard)
-    elif message.text.lower() == commands[2].lower():
+    elif message.text.lower() == commands[1].lower():
         inline_keys = []
         with sq.connect(config.database) as con:
             cur = con.cursor()
