@@ -48,8 +48,8 @@ def routine_check():
                 for result in results:
                     routine_id = result[0]
                     keyboard = types.InlineKeyboardMarkup()
-                    key_1 = types.InlineKeyboardButton(text='Выполнено', callback_data=f"routine_set_status {routine_id}1")
-                    key_2 = types.InlineKeyboardButton(text='Не выполнено', callback_data=f"routine_set_status {routine_id}0")
+                    key_1 = types.InlineKeyboardButton(text='Выполнено', callback_data=f"routine_set_status {routine_id};1")
+                    key_2 = types.InlineKeyboardButton(text='Не выполнено', callback_data=f"routine_set_status {routine_id};0")
                     keyboard.add(key_1, key_2)
                     bot.send_message(config.telegram_my_id, text=f"Задание: {result[1]}", reply_markup=keyboard)
             else:
@@ -61,16 +61,14 @@ def routine_check():
 
 
 def set_routine_status(message, call_data):
-    data = call_data.split(" ")
-    routine_status = int(data[1][1])
-    routine_id = data[1][0]
-    if routine_status == 1:
+    data = call_data.split()[1].split(";")
+    if data[1] == "1":
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"UPDATE routine SET success = {routine_status} WHERE id = {routine_id}")
+            cur.execute(f"UPDATE routine SET success = 1 WHERE id = {data[0]}")
         bot.send_message(message.chat.id, f"Задание выполнено")
     else:
-        logging.info(f"routine id={routine_id} unsuccess, status={routine_status}")
+        logging.info(f"routine id={data[0]} unsuccess, status={data[1]}")
         bot.send_message(message.chat.id, 'Очень жаль, что ты не выполнил задание...')
 
 
@@ -368,6 +366,7 @@ def add_routine_week(message, call_data):
 
 
 def schedule_main():
+    routine_check()
     schedule.every().day.at(
         "07:00",
         timezone(config.timezone_my)
