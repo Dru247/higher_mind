@@ -25,7 +25,6 @@ commands = ["Создать задание",
             "Список заданий"]
 
 keyboard_main = types.ReplyKeyboardMarkup(resize_keyboard=True)
-
 item_1 = types.KeyboardButton(commands[0])
 item_2 = types.KeyboardButton(commands[1])
 keyboard_main.row(item_1, item_2)
@@ -103,32 +102,47 @@ def add_type_field_task(message):
         bot.send_message(message.chat.id, 'Некорректно')
 
 
-#!!!!!!!!!
 def set_task(message, call_data):
     try:
-        set_type_field = call_data.split()[1]
+        id_field = call_data.split()[1]
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute("INSERT id, name FROM task_frequency_types")
-        bot.send_message(message.chat.id, text="Введи текст задачи")
-        bot.register_next_step_handler(message, lambda m: add_task(m, set_type_field))
+            inline_keys = []
+            cur.execute("SELECT id, name FROM task_frequency_types")
+            for record in cur:
+                inline_keys.append(
+                    types.InlineKeyboardButton(
+                        text=record[1],
+                        callback_data=f"task_select_frequency {id_field};{record[0]}"))
+            keyboard = types.InlineKeyboardMarkup()
+            keyboard.row(*inline_keys)
+        bot.send_message(
+            message.chat.id,
+            text="Введи тип задания",
+            reply_markup=keyboard)
     except:
         logging.critical("func set_task - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
 
 
-# need to add question about frequency_type
-def add_task(message, set_type_field):
+def add_task(message, data):
+    bot.send_message(message.chat.id, "Введи текст задачи")
+    bot.register_next_step_handler(message, lambda m: add_task_2(m, data))
+
+
+def add_task_2(message, data):
+    task_set = data.split()[1].split(";")
     try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"""INSERT INTO tasks (id_user, task_field_type, frequency_type, task)
-                        VALUES ((SELECT id FROM users WHERE telegram_id = {message.chat.id}), {set_type_field}, {5}, '{message.text}')
+                        VALUES ((SELECT id FROM users WHERE telegram_id = {message.chat.id}), {task_set[0]}, {task_set[0]}, '{message.text}')
                         """)
             bot.send_message(message.chat.id, 'Задача создана')
     except:
         logging.critical("func add_task - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
+
 
 # need to add question about frequency_type
 def list_tasks(message, call_data):
@@ -143,25 +157,6 @@ def list_tasks(message, call_data):
     except:
         logging.warning("func list_tasks - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
-
-
-def access_check(message, call_data):
-    try:    
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            cur.execute(f"SELECT id FROM routine WHERE date_id BETWEEN (SELECT id FROM dates WHERE date = date('now','-8 day')) AND (SELECT id FROM dates WHERE date = date('now','-1 day')) AND success = {0}")
-            result = cur.fetchone()
-            if result is None:
-                logging.info(f"access_check: access successful: {result}")
-                bot.send_message(message.chat.id, text="Допуск получен")
-                socket_client(config.socket_server, config.socket_port, config.coding, call_data.split(" ")[1])
-            else:
-                logging.info(f"access_check: access unsuccessful: {result}")
-                bot.send_message(message.chat.id, text="Допуск не получен")
-
-    except:
-        logging.warning("func access_check - error", exc_info=True)
-        bot.send_message(message.chat.id, text="Некорректно")
 
 
 def search_add(message, call_data):
@@ -294,6 +289,37 @@ def add_routine_tommorow(message, call_data):
         logging.error(f"func add_routine_tommorow - error", exc_info=True)  
 
 
+def count_access():
+    try:    
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute("SELECT count(event) FROM events")
+            count_events = int(cur.fetchone()[0])
+            cur.execute("SELECT count(success) FROM routine WHERE success = 1")
+            count_routine = int(cur.fetchone()[0])
+            cur.execute("SELECT count(date) FROM dates")
+            count_dates = int(cur.fetchone()[0])
+            result = (count_routine // count_events) // (count_dates // 7)
+            logging.info(f"func count_access: ({count_routine} / {count_events}) / ({count_dates} / 7) = {result}")
+            return result
+    except:
+        logging.warning("func count_access - error", exc_info=True)
+
+
+def access_check(message, call_data):
+    try:
+        if count_access() > 1:
+            with sq.connect(config.database) as con:
+                cur = con.cursor()
+                cur.execute("INSERT INTO events (event) VALUES(1)")
+            bot.send_message(message.chat.id, text="Допуск получен")
+            socket_client(config.socket_server, config.socket_port, config.coding, call_data.split()[1])
+        else:
+            bot.send_message(message.chat.id, text="Допуск не получен")
+    except:
+        logging.warning("func access_check - error", exc_info=True)
+
+
 def socket_client(server, port, coding, data_send):
     sock = socket.socket()
     sock.connect((server, port))
@@ -366,7 +392,6 @@ def add_routine_week(message, call_data):
 
 
 def schedule_main():
-    routine_check()
     schedule.every().day.at(
         "07:00",
         timezone(config.timezone_my)
@@ -453,8 +478,10 @@ def task_completed(message):
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
-    if "task_field_type" in call.data:
+    if "task_select_field" in call.data:
         set_task(call.message, call.data)
+    elif "task_select_frequency" in call.data:
+        add_task(call.message, call.data)
     elif "list_task_type" in call.data:
         list_tasks(call.message, call.data)
     elif "routine_set_status" in call.data:
@@ -482,7 +509,7 @@ def take_text(message):
                 inline_keys.append(
                     types.InlineKeyboardButton(
                         text=record[1],
-                        callback_data=f"task_field_type {record[0]}"))
+                        callback_data=f"task_select_field {record[0]}"))
         inline_keys.append(types.InlineKeyboardButton(
                                 text='Новый тип заданий',
                                 callback_data='new_type_field_task'))
