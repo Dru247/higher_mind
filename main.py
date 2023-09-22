@@ -214,7 +214,10 @@ def check_email(imap_server, email_login, email_password):
 def add_date():
     with sq.connect(config.database) as con:
         cur = con.cursor()
-        cur.execute("SELECT id FROM tasks WHERE frequency_type = 1")
+        if datetime.datetime.today().weekday() not in (4, 5):
+            cur.execute("SELECT id FROM tasks WHERE frequency_type IN (1, 6)")
+        else:
+            cur.execute("SELECT id FROM tasks WHERE frequency_type = 1")
         for result in cur.fetchall():
             cur.execute(f"INSERT INTO routine (date_id, task_id) VALUES ((SELECT id FROM dates WHERE date = date('now','+1 day')), {result[0]})")
 
@@ -542,6 +545,6 @@ def take_text(message):
         bot.send_message(message.chat.id, 'Я не понимаю, к сожалению')
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     threading.Thread(target=schedule_main).start()
     bot.polling(none_stop=True)
