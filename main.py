@@ -35,7 +35,7 @@ def routine_check():
     try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"""SELECT routine.id, task
+            cur.execute(f"""SELECT routine.id, tasks.task, tasks.id
                 FROM routine
                 JOIN tasks ON routine.task_id = tasks.id
                 WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
@@ -50,7 +50,7 @@ def routine_check():
                     key_1 = types.InlineKeyboardButton(text='Выполнено', callback_data=f"routine_set_status {routine_id};1")
                     key_2 = types.InlineKeyboardButton(text='Не выполнено', callback_data=f"routine_set_status {routine_id};0")
                     keyboard.add(key_1, key_2)
-                    bot.send_message(config.telegram_my_id, text=f"Задание: {result[1]}", reply_markup=keyboard)
+                    bot.send_message(config.telegram_my_id, text=f"{result[2]}: {result[1]}", reply_markup=keyboard)
             else:
                 logging.info(f"func routine_daily_check_2: not exist daily routine ({results})")
                 bot.send_message(config.telegram_my_id, text=f"Сегодня заданий не было")
@@ -136,7 +136,7 @@ def add_task_2(message, data):
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"""INSERT INTO tasks (id_user, task_field_type, frequency_type, task)
-                        VALUES ((SELECT id FROM users WHERE telegram_id = {message.chat.id}), {task_set[0]}, {task_set[0]}, '{message.text}')
+                        VALUES ((SELECT id FROM users WHERE telegram_id = {message.chat.id}), {task_set[0]}, {task_set[1]}, '{message.text}')
                         """)
             bot.send_message(message.chat.id, 'Задача создана')
     except:
@@ -272,7 +272,7 @@ def tasks_tomorrow():
                     callback_data=f"routine_tomorrow {result[0]};{date.isoformat()}"))
                 bot.send_message(
                     config.telegram_my_id,
-                    text=result[1],
+                    text=f"{result[0]}: {result[1]}",
                     reply_markup=keyboard)
 
     except Exception:
@@ -334,13 +334,13 @@ def morning_business():
     preparation_emails()
     with sq.connect(config.database) as con:
         cur = con.cursor()
-        cur.execute("""SELECT routine.id, task FROM routine
+        cur.execute("""SELECT routine.id, tasks.task, tasks.id FROM routine
                     JOIN tasks ON routine.task_id = tasks.id  
                     WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
                     """)
         bot.send_message(config.telegram_my_id, text=f"Сегодня у тебя следующие задания:")
         for result in cur:
-            bot.send_message(config.telegram_my_id, text=f"{result[1]}")
+            bot.send_message(config.telegram_my_id, text=f"{result[2]}: {result[1]}")
 
 
 def planning_day():
