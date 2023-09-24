@@ -334,13 +334,19 @@ def morning_business():
     preparation_emails()
     with sq.connect(config.database) as con:
         cur = con.cursor()
-        cur.execute("""SELECT routine.id, tasks.task, tasks.id FROM routine
+        cur.execute("""SELECT routine.id, tasks.task, tasks.id
+                    FROM routine
                     JOIN tasks ON routine.task_id = tasks.id  
-                    WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+                    WHERE
+                    date_id = (SELECT id FROM dates WHERE date = date('now'))
                     """)
-        bot.send_message(config.telegram_my_id, text=f"Сегодня у тебя следующие задания:")
+        bot.send_message(
+            config.telegram_my_id,
+            text=f"Сегодня у тебя следующие задания:")
         for result in cur:
-            bot.send_message(config.telegram_my_id, text=f"{result[2]}: {result[1]}")
+            bot.send_message(
+                config.telegram_my_id,
+                text=f"{result[2]}: {result[1]}")
 
 
 def planning_day():
@@ -356,19 +362,21 @@ def planning_week():
         with sq.connect(config.database) as con:
             cur = con.cursor()
             for day in range(1, 8):
-                cur.execute(f"INSERT OR IGNORE INTO dates VALUES (NULL, date('now','+{day} day'))")
+                cur.execute(f"""INSERT OR IGNORE INTO dates
+                    VALUES (NULL, date('now','+{day} day'))""")
             cur.execute("""SELECT id, tasks.task
                 FROM tasks
                 WHERE frequency_type = 2
-                """)        
+                """)
             for result in cur.fetchall():
                 keyboard = types.InlineKeyboardMarkup()
                 keys = []
                 for number, day in enumerate(week):
-                    date = date_now + datetime.timedelta(days = number + 1)
+                    date = date_now + datetime.timedelta(days=number + 1)
                     key = types.InlineKeyboardButton(
                         text=day,
-                        callback_data=f"routine_week {date.isoformat()};{result[0]};{result[1]}")
+                        callback_data=f"""routine_week {date.isoformat()};
+                        {result[0]};{result[1]}""")
                     keys.append(key)
                 keyboard.row(*keys)
                 bot.send_message(
@@ -376,7 +384,7 @@ def planning_week():
                     text=f"Запланируй на следую неделю {result[1]}:",
                     reply_markup=keyboard)
     except Exception:
-        logging.error(f"func planning_week - error", exc_info=True)
+        logging.error("func planning_week - error", exc_info=True)
 
 
 def add_routine_week(message, call_data):
@@ -386,12 +394,16 @@ def add_routine_week(message, call_data):
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"""INSERT INTO routine (date_id, task_id)
-                VALUES ((SELECT id FROM dates WHERE date = {data[0]}), {data[1]})""")
+                VALUES (
+                    (SELECT id FROM dates WHERE date = {data[0]}),
+                    {data[1]}
+                    )
+                """)
         bot.send_message(
             message.chat.id,
             text=f"{data[2]} запланировано на {data[0]}")
     except Exception:
-        logging.error(f"func add_routine_week - error", exc_info=True)
+        logging.error("func add_routine_week - error", exc_info=True)
 
 
 def schedule_main():
@@ -399,47 +411,19 @@ def schedule_main():
         "07:00",
         timezone(config.timezone_my)
         ).do(morning_business)
-    schedule.every().day.at("21:30", timezone(config.timezone_my)).do(planning_day)
-    schedule.every().sunday.at("18:00", timezone(config.timezone_my)).do(planning_week)
+    schedule.every().day.at(
+        "21:30",
+        timezone(config.timezone_my)
+        ).do(planning_day)
+    schedule.every().sunday.at(
+        "18:00",
+        timezone(config.timezone_my)
+        ).do(planning_week)
     logging.info("Schedule 'every_day' starts")
 
     while True:
         schedule.run_pending()
         time.sleep(1)
-
-
-def reminder_message(message):
-    pass
-    # @bot.message_handler(commands=['reminder'])
-    # def reminder_message(message):
-    #     bot.send_message(message.chat.id, 'Введите текст напоминания')
-    #     bot.register_next_step_handler(message, set_reminder_name)
-
-
-    # def set_reminder_name(message):
-    #     user_data = {}
-    #     user_data[message.chat.id] = {'reminder_name': message.text}
-    #     bot.send_message(message.chat.id, 'Введите дату и время, когда хотите получить напоминание в формате ГГГГ-ММ-ДД чч:мм:сс')
-    #     bot.register_next_step_handler(message, reminder_set, user_data)
-
-    # def reminder_set(message, user_data):
-    #     try:
-    #         reminder_time = datetime.datetime.strptime(message.text, '%Y-%m-%d %H:%M:%S')
-    #         now = datetime.datetime.now()
-    #         delta = reminder_time - now
-    #         if delta.total_seconds() <= 0:
-    #             bot.send_message(message.chat.id, 'Вы ввели прошедшую дату, попробуйте ещё раз')
-    #         else:
-    #             reminder_name = user_data[message.chat.id]['reminder_name']
-    #             bot.send_message(message.chat.id, 'Напоминание {} установлено на {}.'.format(reminder_name, reminder_time))
-    #             reminder_time = threading.Timer(delta.total_seconds(), send_reminder, [message.chat.id, reminder_name])
-    #             reminder_time.start()
-    #     except ValueError:
-    #         bot.send_message(message.chat.id, 'Вы ввели неверный формат даты и времени, попробуйте ещё раз')
-
-    # def send_reminder(chat_id, reminder_name):
-    #     bot.send_message(chat_id,
-    #           'Время получить ваше напоминание "{}"!'.format(reminder_name))
 
 
 @bot.message_handler(commands=['start'])
@@ -471,7 +455,7 @@ def task_completed(message):
     key_4 = types.InlineKeyboardButton(
         text="Add event",
         callback_data='emailer_add event')
-    
+
     keyboard.add(key_1, key_2, key_3, key_4)
     bot.send_message(
         message.from_user.id,
@@ -547,4 +531,4 @@ def take_text(message):
 
 if __name__ == "__main__":
     threading.Thread(target=schedule_main).start()
-    bot.polling(none_stop=True)
+    bot.infinity_polling()
