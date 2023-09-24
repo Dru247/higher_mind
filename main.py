@@ -21,8 +21,8 @@ logging.basicConfig(
 
 bot = telebot.TeleBot(config.telegram_token)
 
-commands = ["Создать задание",
-            "Список заданий"]
+commands = ["Создать задачу",
+            "Список задач"]
 
 keyboard_main = types.ReplyKeyboardMarkup(resize_keyboard=True)
 item_1 = types.KeyboardButton(commands[0])
@@ -53,7 +53,7 @@ def routine_check():
                     bot.send_message(config.telegram_my_id, text=f"{result[2]}: {result[1]}", reply_markup=keyboard)
             else:
                 logging.info(f"func routine_daily_check_2: not exist daily routine ({results})")
-                bot.send_message(config.telegram_my_id, text=f"Сегодня заданий не было")
+                bot.send_message(config.telegram_my_id, text=f"Сегодня задач не было")
     except:
         logging.critical("func routine_daily_check_2 - error", exc_info=True)
         bot.send_message(config.telegram_my_id, text="Некорректно")
@@ -65,10 +65,12 @@ def set_routine_status(message, call_data):
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"UPDATE routine SET success = 1 WHERE id = {data[0]}")
-        bot.send_message(message.chat.id, f"Задание выполнено")
+            cur.execute(f"SELECT task_id FROM routine WHERE id = {data[0]}")
+            task_id = cur.fetchone()
+            bot.send_message(message.chat.id, f"Задача ID:{task_id} выполнено")
     else:
         logging.info(f"routine id={data[0]} unsuccess, status={data[1]}")
-        bot.send_message(message.chat.id, 'Очень жаль, что ты не выполнил задание...')
+        bot.send_message(message.chat.id, 'Очень жаль, что ты не выполнил задачу...')
 
 
 # user
@@ -86,7 +88,7 @@ def set_user(message):
 
 # tasks
 def set_type_field_task(message):
-    bot.send_message(message.chat.id, text="Введи новый тип заданий")
+    bot.send_message(message.chat.id, text="Введи новый тип задач")
     bot.register_next_step_handler(message, add_type_field_task)
 
 
@@ -95,7 +97,7 @@ def add_type_field_task(message):
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"INSERT INTO task_field_types(field_name) VALUES('{message.text}')")
-            bot.send_message(message.chat.id, text=f"Новый тип заданий ({message.text}) добавлен", reply_markup  = keyboard_main)
+            bot.send_message(message.chat.id, text=f"Новый тип задач ({message.text}) добавлен", reply_markup  = keyboard_main)
         
     except:
         logging.critical("func add_routine - error", exc_info=True)
@@ -118,7 +120,7 @@ def set_task(message, call_data):
             keyboard.row(*inline_keys)
         bot.send_message(
             message.chat.id,
-            text="Введи тип задания",
+            text="Введи тип задачи",
             reply_markup=keyboard)
     except:
         logging.critical("func set_task - error", exc_info=True)
@@ -226,44 +228,23 @@ def tasks_tomorrow():
     try:
         date = datetime.date.today() + datetime.timedelta(days=1)
         with sq.connect(config.database) as con:
+            relationships = [(1, 5), (2, 3), (3, 2), (4, 2)]
             results = []
             cur = con.cursor()
-            cur.execute("""SELECT id, task FROM tasks
-                WHERE id NOT IN (SELECT task_id FROM routine
-                WHERE success = 1 AND task_field_type = 1)
-                AND frequency_type = 5
-                ORDER BY random()
-                LIMIT 5
-                """)
-            for result in cur.fetchall():
-                results.append(result)
-            cur.execute("""SELECT id, task FROM tasks
-                WHERE id NOT IN (SELECT task_id FROM routine
-                WHERE success = 1 AND task_field_type = 2)
-                AND frequency_type = 5        
-                ORDER BY random()
-                LIMIT 3
-                """)
-            for result in cur.fetchall():
-                results.append(result)
-            cur.execute("""SELECT id, task FROM tasks
-                WHERE id NOT IN (SELECT task_id FROM routine
-                WHERE success = 1 AND task_field_type = 3)
-                AND frequency_type = 5
-                ORDER BY random()
-                LIMIT 2
-                """)
-            for result in cur.fetchall():
-                results.append(result)
-            cur.execute("""SELECT id, task FROM tasks
-                WHERE id NOT IN (SELECT task_id FROM routine
-                WHERE success = 1 AND task_field_type = 4)
-                AND frequency_type = 5
-                ORDER BY random()
-                LIMIT 2
-                """)
-            for result in cur.fetchall():
-                results.append(result)
+            for field, limit in relationships:
+                cur.execute(f"""SELECT id, task FROM tasks
+                    WHERE id NOT IN
+                        (SELECT task_id FROM routine
+                        WHERE success = 1
+                        AND date_id !=
+                        (SELECT id FROM dates WHERE date = date('now')))
+                    AND frequency_type = 5
+                    AND task_field_type = {field}
+                    ORDER BY random()
+                    LIMIT {limit}
+                    """)
+                for result in cur.fetchall():
+                    results.append(result)
 
             for result in results:
                 keyboard = types.InlineKeyboardMarkup()
@@ -287,7 +268,7 @@ def add_routine_tommorow(message, call_data):
             cur.execute(f"INSERT INTO routine (date_id, task_id) VALUES ((SELECT id FROM dates WHERE date = '{data[1]}'), {data[0]})")
             bot.send_message(
                 message.chat.id,
-                text=f"Задача ID={data[0]} добавлена на исполнение")
+                text=f"Задача ID:{data[0]} добавлена на исполнение")
     except Exception:
         logging.error(f"func add_routine_tommorow - error", exc_info=True)  
 
@@ -342,7 +323,7 @@ def morning_business():
                     """)
         bot.send_message(
             config.telegram_my_id,
-            text=f"Сегодня у тебя следующие задания:")
+            text=f"Сегодня у тебя следующие задачи:")
         for result in cur:
             bot.send_message(
                 config.telegram_my_id,
@@ -498,13 +479,13 @@ def take_text(message):
                         text=record[1],
                         callback_data=f"task_select_field {record[0]}"))
         inline_keys.append(types.InlineKeyboardButton(
-                                text='Новый тип заданий',
+                                text='Новый тип задач',
                                 callback_data='new_type_field_task'))
         keyboard = types.InlineKeyboardMarkup()
         keyboard.row(*inline_keys)
         bot.send_message(
             message.from_user.id,
-            text="Введи тип задания",
+            text="Введи тип задачи",
             reply_markup=keyboard)
     elif message.text.lower() == commands[1].lower():
         inline_keys = []
@@ -521,7 +502,7 @@ def take_text(message):
             keyboard.add(key)
         bot.send_message(
             message.from_user.id,
-            text="Какой тип заданий отобразить?",
+            text="Какой тип задачи отобразить?",
             reply_markup=keyboard)
     else:
         logging.warning(
