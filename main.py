@@ -38,13 +38,20 @@ keyboard_main.row(item_1, item_2)
 # routine
 def routine_check():
     try:
+        preparation_emails()
         with sq.connect(config.database) as con:
             cur = con.cursor()
+            cur.execute("SELECT sum(unseen_status) FROM emails")
+            result = cur.fetchone()[0]
+            logging.info(f"Unseen msg = {result}")
+            if int(result) < 30:
+                cur.execute("UPDATE routine SET success = 1 WHERE task_id = 121 AND date_id = (SELECT id FROM dates WHERE date = date('now'))")
             cur.execute(f"""SELECT routine.id, tasks.task, tasks.id
                 FROM routine
                 JOIN tasks ON routine.task_id = tasks.id
                 WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
                 AND success = {0}
+                AND task_id != 121
                 """)
             results = cur.fetchall()
             if results:
@@ -204,7 +211,7 @@ def list_tasks(message):
                 data=msg)
         bot.send_message(
             message.chat.id,
-            text = "Посьмо отправлено"
+            text = "Письмо отправлено"
             )
     except Exception:
         logging.critical("func 'list_tasks' - error", exc_info=True)
@@ -245,21 +252,25 @@ def check_email(imap_server, email_login, email_password):
         mailBox.select()
         unseen_msg = mailBox.uid('search', "UNSEEN", "ALL")
         id_unseen_msgs = unseen_msg[1][0].decode("utf-8").split(" ")
-        if id_unseen_msgs:
-            bot.send_message(
-                config.telegram_my_id,
-                f"На почте {email_login} есть непрочитанные письма, в кол-ве {len(id_unseen_msgs)} шт."
-                )
-            logging.info(f"{email_login} has unseen messages")
-        else:
-            logging.info(f"{email_login} doesn't have unseen messages")
-
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"UPDATE emails SET unseen_status = {len(id_unseen_msgs)} WHERE email = '{email_login}'")
     except Exception:
         logging.error(f"func check email - error", exc_info=True)
-        
     finally:
         mailBox.close()
         mailBox.logout()
+
+
+def info_check_email():
+    with sq.connect(config.database) as con:
+        cur = con.cursor()
+        cur.execute("SELECT email, unseen_status FROM emails")
+        results = cur.fetchall()
+        for result in results:
+            bot.send_message(
+                config.telegram_my_id,
+                f"На почте {result[0]} есть непрочитанные письма, в кол-ве {result[1]} шт.")
 
 
 def tasks_tomorrow():
@@ -351,6 +362,7 @@ def socket_client(server, port, coding, data_send):
 
 def morning_business():
     preparation_emails()
+    info_check_email()
     with sq.connect(config.database) as con:
         cur = con.cursor()
         cur.execute("""SELECT routine.id, tasks.task, tasks.id
@@ -420,9 +432,10 @@ def add_routine_week(message, call_data):
 
 
 def add_date():
+    week_day = datetime.datetime.today().weekday()
     with sq.connect(config.database) as con:
         cur = con.cursor()
-        week_day = datetime.datetime.today().weekday()
+        cur.execute("INSERT OR IGNORE INTO dates (date) VALUES (date('now','+1 day'))")
         if week_day not in (4, 5):
             cur.execute("SELECT id FROM tasks WHERE frequency_type IN (1, 6)")
         else:
@@ -431,8 +444,8 @@ def add_date():
             cur.execute(f"""INSERT INTO routine (date_id, task_id)
                 VALUES ((SELECT id FROM dates WHERE date = date('now','+1 day')), {result[0]})
                 """)
-        if week_day == 0:
-            planning_week()
+    if week_day == 6:
+        planning_week()
 
 
 def planning_day():
@@ -447,7 +460,7 @@ def schedule_main():
         timezone(config.timezone_my)
         ).do(morning_business)
     schedule.every().day.at(
-        "21:30",
+        "18:15",
         timezone(config.timezone_my)
         ).do(planning_day)
 
