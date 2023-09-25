@@ -460,7 +460,7 @@ def schedule_main():
         timezone(config.timezone_my)
         ).do(morning_business)
     schedule.every().day.at(
-        "18:15",
+        "21:30",
         timezone(config.timezone_my)
         ).do(planning_day)
 
