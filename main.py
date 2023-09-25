@@ -1,5 +1,6 @@
 import config
 import datetime
+import funcs
 import logging
 import imaplib
 import schedule
@@ -9,6 +10,8 @@ import telebot
 import threading
 import time
 
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pytz import timezone
 from telebot import types
 
@@ -18,11 +21,13 @@ logging.basicConfig(
     filename="logs.log",
     filemode="a",
     format="%(asctime)s %(levelname)s %(message)s")
+schedule_logger = logging.getLogger('schedule')
+schedule_logger.setLevel(level=logging.DEBUG)
 
 bot = telebot.TeleBot(config.telegram_token)
 
-commands = ["Создать задачу",
-            "Список задач"]
+commands = ["Cоздать задачу",
+            "Cписок задач"]
 
 keyboard_main = types.ReplyKeyboardMarkup(resize_keyboard=True)
 item_1 = types.KeyboardButton(commands[0])
@@ -87,6 +92,27 @@ def set_user(message):
 
 
 # tasks
+def choise_field_tipe(message):
+    inline_keys = []
+    with sq.connect(config.database) as con:
+        cur = con.cursor()
+        cur.execute("SELECT id, field_name FROM task_field_types")
+        for record in cur:
+            inline_keys.append(
+                types.InlineKeyboardButton(
+                    text=record[1],
+                    callback_data=f"task_select_field {record[0]}"))
+    inline_keys.append(types.InlineKeyboardButton(
+                            text='Новый тип задач',
+                            callback_data='new_type_field_task'))
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.row(*inline_keys)
+    bot.send_message(
+        message.from_user.id,
+        text="Введи тип задачи",
+        reply_markup=keyboard)
+
+
 def set_type_field_task(message):
     bot.send_message(message.chat.id, text="Введи новый тип задач")
     bot.register_next_step_handler(message, add_type_field_task)
@@ -146,19 +172,42 @@ def add_task_2(message, data):
         bot.send_message(message.chat.id, 'Некорректно')
 
 
-# need to add question about frequency_type
-def list_tasks(message, call_data):
-    logging.info(f"LIST TASK {call_data}")
+def list_tasks(message):
     try:
-        task_type = call_data.split(" ")[1]
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"SELECT id, task FROM tasks WHERE id_user = (SELECT id FROM users WHERE telegram_id = {message.chat.id}) AND status = 1 AND task_field_type = {task_type}")
-            for id, text in cur:
-                bot.send_message(message.chat.id, f"{id}: {text}")
-    except:
-        logging.warning("func list_tasks - error", exc_info=True)
-        bot.send_message(message.chat.id, 'Некорректно')
+            cur.execute("""SELECT tasks.id, task_field_types.field_name,
+                task_frequency_types.name, tasks.task, tasks.datetime_creation
+                FROM tasks
+                JOIN task_field_types ON task_field_types.id = tasks.task_field_type
+                JOIN task_frequency_types ON task_frequency_types.id = tasks.frequency_type
+                WHERE tasks.id NOT IN (SELECT task_id FROM routine WHERE success = 1)
+                OR frequency_type != 5
+                ORDER BY task_field_types.field_name
+                """)
+            result = cur.fetchall()
+            email_text = ""
+            for number, text in enumerate(result):
+                email_text += f"{number}: {text}\n"
+            msg = MIMEMultipart()
+            msg["From"] = config.my_email_mailru
+            msg["To"] = config.my_email_yandex
+            msg["Subject"] = "Список задач"
+            part = MIMEText(email_text)
+            msg.attach(part)
+            funcs.send_email(
+                smtp_server=config.smtp_server_mailru,
+                smtp_port=config.smtp_port_mailru,
+                sender_email=config.my_email_mailru,
+                sender_email_password=config.password_my_email_mailru,
+                recipient_email=config.my_email_yandex,
+                data=msg)
+        bot.send_message(
+            message.chat.id,
+            text = "Посьмо отправлено"
+            )
+    except Exception:
+        logging.critical("func 'list_tasks' - error", exc_info=True)
 
 
 def search_add(message, call_data):
@@ -211,17 +260,6 @@ def check_email(imap_server, email_login, email_password):
     finally:
         mailBox.close()
         mailBox.logout()
-
-
-def add_date():
-    with sq.connect(config.database) as con:
-        cur = con.cursor()
-        if datetime.datetime.today().weekday() not in (4, 5):
-            cur.execute("SELECT id FROM tasks WHERE frequency_type IN (1, 6)")
-        else:
-            cur.execute("SELECT id FROM tasks WHERE frequency_type = 1")
-        for result in cur.fetchall():
-            cur.execute(f"INSERT INTO routine (date_id, task_id) VALUES ((SELECT id FROM dates WHERE date = date('now','+1 day')), {result[0]})")
 
 
 def tasks_tomorrow():
@@ -330,12 +368,6 @@ def morning_business():
                 text=f"{result[2]}: {result[1]}")
 
 
-def planning_day():
-    add_date()
-    routine_check()
-    tasks_tomorrow()
-
-
 def planning_week():
     try:
         week = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
@@ -387,6 +419,28 @@ def add_routine_week(message, call_data):
         logging.error("func add_routine_week - error", exc_info=True)
 
 
+def add_date():
+    with sq.connect(config.database) as con:
+        cur = con.cursor()
+        week_day = datetime.datetime.today().weekday()
+        if week_day not in (4, 5):
+            cur.execute("SELECT id FROM tasks WHERE frequency_type IN (1, 6)")
+        else:
+            cur.execute("SELECT id FROM tasks WHERE frequency_type = 1")
+        for result in cur.fetchall():
+            cur.execute(f"""INSERT INTO routine (date_id, task_id)
+                VALUES ((SELECT id FROM dates WHERE date = date('now','+1 day')), {result[0]})
+                """)
+        if week_day == 0:
+            planning_week()
+
+
+def planning_day():
+    add_date()
+    routine_check()
+    tasks_tomorrow()
+
+
 def schedule_main():
     schedule.every().day.at(
         "07:00",
@@ -396,11 +450,6 @@ def schedule_main():
         "21:30",
         timezone(config.timezone_my)
         ).do(planning_day)
-    schedule.every().sunday.at(
-        "18:00",
-        timezone(config.timezone_my)
-        ).do(planning_week)
-    logging.info("Schedule 'every_day' starts")
 
     while True:
         schedule.run_pending()
@@ -450,8 +499,6 @@ def callback_query(call):
         set_task(call.message, call.data)
     elif "task_select_frequency" in call.data:
         add_task(call.message, call.data)
-    elif "list_task_type" in call.data:
-        list_tasks(call.message, call.data)
     elif "routine_set_status" in call.data:
         set_routine_status(call.message, call.data)
     elif "search" in call.data:
@@ -469,41 +516,9 @@ def callback_query(call):
 @bot.message_handler(content_types=['text'])
 def take_text(message):
     if message.text.lower() == commands[0].lower():
-        inline_keys = []
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            cur.execute("SELECT id, field_name FROM task_field_types")
-            for record in cur:
-                inline_keys.append(
-                    types.InlineKeyboardButton(
-                        text=record[1],
-                        callback_data=f"task_select_field {record[0]}"))
-        inline_keys.append(types.InlineKeyboardButton(
-                                text='Новый тип задач',
-                                callback_data='new_type_field_task'))
-        keyboard = types.InlineKeyboardMarkup()
-        keyboard.row(*inline_keys)
-        bot.send_message(
-            message.from_user.id,
-            text="Введи тип задачи",
-            reply_markup=keyboard)
+        choise_field_tipe(message)
     elif message.text.lower() == commands[1].lower():
-        inline_keys = []
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            cur.execute("SELECT id, field_name FROM task_field_types")
-            for record in cur:
-                inline_keys.append(
-                    types.InlineKeyboardButton(
-                        text=record[1],
-                        callback_data=f"list_task_type {record[0]}"))
-        keyboard = types.InlineKeyboardMarkup()
-        for key in inline_keys:
-            keyboard.add(key)
-        bot.send_message(
-            message.from_user.id,
-            text="Какой тип задачи отобразить?",
-            reply_markup=keyboard)
+        list_tasks(message)
     else:
         logging.warning(
             f"func take_text: not understend question: {message.text}")

@@ -15,6 +15,8 @@ coding = "utf-8"
 imap_server_mailru = "imap.mail.ru"
 my_email_mailru = os.getenv("EMAIL_MAILRU")
 password_my_email_mailru = os.getenv("PASSWOR_EMAIL_MAILRU")
+smtp_server_mailru = "smtp.mail.ru"
+smtp_port_mailru = "587"
 
 # gmail
 imap_server_gmail = "imap.gmail.com"
