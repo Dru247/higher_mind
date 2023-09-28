@@ -79,7 +79,7 @@ def set_routine_status(message, call_data):
             cur.execute(f"UPDATE routine SET success = 1 WHERE id = {data[0]}")
             cur.execute(f"SELECT task_id FROM routine WHERE id = {data[0]}")
             task_id = cur.fetchone()
-            bot.send_message(message.chat.id, f"Задача ID:{task_id} выполнено")
+            bot.send_message(message.chat.id, f"Задача №{task_id[0]}: выполнена")
     else:
         logging.info(f"routine id={data[0]} unsuccess, status={data[1]}")
         bot.send_message(message.chat.id, 'Очень жаль, что ты не выполнил задачу...')
@@ -256,7 +256,7 @@ def check_email(imap_server, email_login, email_password):
             cur = con.cursor()
             cur.execute(f"UPDATE emails SET unseen_status = {len(id_unseen_msgs)} WHERE email = '{email_login}'")
     except Exception:
-        logging.error(f"func check email - error", exc_info=True)
+        logging.error("func check email - error", exc_info=True)
     finally:
         mailBox.close()
         mailBox.logout()
@@ -270,7 +270,8 @@ def info_check_email():
         for result in results:
             bot.send_message(
                 config.telegram_my_id,
-                f"На почте {result[0]} есть непрочитанные письма, в кол-ве {result[1]} шт.")
+                f"На почте {result[0]} есть непрочитанные письма, "
+                f"в кол-ве {result[1]} шт.")
 
 
 def tasks_tomorrow():
@@ -281,11 +282,12 @@ def tasks_tomorrow():
             results = []
             cur = con.cursor()
             for field, limit in relationships:
-                cur.execute(f"""SELECT id, task FROM tasks
+                cur.execute(
+                    f"""SELECT id, task FROM tasks
                     WHERE id NOT IN
                         (SELECT task_id FROM routine
                         WHERE success = 1
-                        AND date_id !=
+                        OR date_id =
                         (SELECT id FROM dates WHERE date = date('now')))
                     AND frequency_type = 5
                     AND task_field_type = {field}
@@ -297,16 +299,20 @@ def tasks_tomorrow():
 
             for result in results:
                 keyboard = types.InlineKeyboardMarkup()
-                keyboard.add(types.InlineKeyboardButton(
-                    text='Завтра?',
-                    callback_data=f"routine_tomorrow {result[0]};{date.isoformat()}"))
+                keyboard.add(
+                    types.InlineKeyboardButton(
+                        text='Завтра?',
+                        callback_data=f"routine_tomorrow "
+                        f"{result[0]};{date.isoformat()}"
+                    )
+                )
                 bot.send_message(
                     config.telegram_my_id,
                     text=f"{result[0]}: {result[1]}",
                     reply_markup=keyboard)
 
     except Exception:
-        logging.error(f"func tasks_tomorrow - error", exc_info=True)    
+        logging.error("func tasks_tomorrow - error", exc_info=True)
 
 
 def add_routine_tommorow(message, call_data):
@@ -314,16 +320,21 @@ def add_routine_tommorow(message, call_data):
         data = call_data.split()[1].split(";")
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"INSERT INTO routine (date_id, task_id) VALUES ((SELECT id FROM dates WHERE date = '{data[1]}'), {data[0]})")
+            cur.execute(
+                f"""INSERT INTO routine (date_id, task_id)
+                VALUES (
+                    (SELECT id FROM dates WHERE date = '{data[1]}'),
+                    {data[0]}
+                )""")
             bot.send_message(
                 message.chat.id,
                 text=f"Задача ID:{data[0]} добавлена на исполнение")
     except Exception:
-        logging.error(f"func add_routine_tommorow - error", exc_info=True)  
+        logging.error("func add_routine_tommorow - error", exc_info=True)
 
 
 def count_access():
-    try:    
+    try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("SELECT count(event) FROM events")
@@ -333,23 +344,33 @@ def count_access():
             cur.execute("SELECT count(date) FROM dates")
             count_dates = int(cur.fetchone()[0])
             result = (count_routine // count_events) // (count_dates // 7)
-            logging.info(f"func count_access: ({count_routine} / {count_events}) / ({count_dates} / 7) = {result}")
+            logging.info(
+                f"func count_access: "
+                f"({count_routine} / {count_events}) / ({count_dates} / 7) "
+                f"= {result}")
             return result
-    except:
+    except Exception:
         logging.warning("func count_access - error", exc_info=True)
 
 
 def access_check(message, call_data):
     try:
-        if count_access() > 1:
+        ratio_success = count_access()
+        if ratio_success > 1:
             with sq.connect(config.database) as con:
                 cur = con.cursor()
                 cur.execute("INSERT INTO events (event) VALUES(1)")
-            bot.send_message(message.chat.id, text="Допуск получен")
-            socket_client(config.socket_server, config.socket_port, config.coding, call_data.split()[1])
+            bot.send_message(
+                message.chat.id,
+                text=f"Допуск получен ({ratio_success})")
+            socket_client(
+                config.socket_server,
+                config.socket_port,
+                config.coding,
+                call_data.split()[1])
         else:
             bot.send_message(message.chat.id, text="Допуск не получен")
-    except:
+    except Exception:
         logging.warning("func access_check - error", exc_info=True)
 
 
@@ -367,13 +388,13 @@ def morning_business():
         cur = con.cursor()
         cur.execute("""SELECT routine.id, tasks.task, tasks.id
                     FROM routine
-                    JOIN tasks ON routine.task_id = tasks.id  
+                    JOIN tasks ON routine.task_id = tasks.id
                     WHERE
                     date_id = (SELECT id FROM dates WHERE date = date('now'))
                     """)
         bot.send_message(
             config.telegram_my_id,
-            text=f"Сегодня у тебя следующие задачи:")
+            text="Сегодня у тебя следующие задачи:")
         for result in cur:
             bot.send_message(
                 config.telegram_my_id,
@@ -435,14 +456,18 @@ def add_date():
     week_day = datetime.datetime.today().weekday()
     with sq.connect(config.database) as con:
         cur = con.cursor()
-        cur.execute("INSERT OR IGNORE INTO dates (date) VALUES (date('now','+1 day'))")
+        cur.execute("""INSERT OR IGNORE INTO dates (date)
+            VALUES (date('now','+1 day'))""")
         if week_day not in (4, 5):
             cur.execute("SELECT id FROM tasks WHERE frequency_type IN (1, 6)")
         else:
             cur.execute("SELECT id FROM tasks WHERE frequency_type = 1")
         for result in cur.fetchall():
             cur.execute(f"""INSERT INTO routine (date_id, task_id)
-                VALUES ((SELECT id FROM dates WHERE date = date('now','+1 day')), {result[0]})
+                VALUES (
+                (SELECT id FROM dates WHERE date = date('now','+1 day')),
+                {result[0]}
+                )
                 """)
     if week_day == 6:
         planning_week()
