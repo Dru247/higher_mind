@@ -7,6 +7,7 @@ load_dotenv()
 
 telegram_token = os.getenv('TELEGRAM_TOKEN')
 telegram_my_id = os.getenv('TELEGRAM_MY_ID')
+ya_disk_token = os.getenv('YA_DISK_TOKEN')
 database = "main.db"
 timezone_my = "Europe/Moscow"
 coding = "utf-8"

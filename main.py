@@ -3,18 +3,22 @@ import datetime
 import funcs
 import logging
 import imaplib
+import os
 import schedule
 import socket
 import sqlite3 as sq
 import telebot
 import threading
 import time
+import yadisk
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pytz import timezone
 from telebot import types
 
+
+ya = yadisk.YaDisk(token=config.ya_disk_token)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -386,12 +390,13 @@ def morning_business():
     info_check_email()
     with sq.connect(config.database) as con:
         cur = con.cursor()
-        cur.execute("""SELECT routine.id, tasks.task, tasks.id
-                    FROM routine
-                    JOIN tasks ON routine.task_id = tasks.id
-                    WHERE
-                    date_id = (SELECT id FROM dates WHERE date = date('now'))
-                    """)
+        cur.execute(
+            """SELECT routine.id, tasks.task, tasks.id
+            FROM routine
+            JOIN tasks ON routine.task_id = tasks.id
+            WHERE
+            date_id = (SELECT id FROM dates WHERE date = date('now'))
+            """)
         bot.send_message(
             config.telegram_my_id,
             text="Сегодня у тебя следующие задачи:")
@@ -452,6 +457,21 @@ def add_routine_week(message, call_data):
         logging.error("func add_routine_week - error", exc_info=True)
 
 
+def save_logs():
+    try:
+        ya.upload(
+            "logs.log",
+            f"Logs/higher_mind/"
+            f"{datetime.datetime.today().year}-"
+            f"{datetime.datetime.today().isocalendar()[1]}.logs")
+        if os.path.exists("logs.log"):
+            os.remove("logs.log")
+            with open("logs.log", 'w') as fp:
+                pass
+    except Exception:
+        logging.warning("func save_logs - error", exc_info=True)
+
+
 def add_date():
     week_day = datetime.datetime.today().weekday()
     with sq.connect(config.database) as con:
@@ -471,6 +491,7 @@ def add_date():
                 """)
     if week_day == 6:
         planning_week()
+        save_logs()
 
 
 def planning_day():
