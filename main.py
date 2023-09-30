@@ -177,7 +177,7 @@ def add_task_2(message, data):
             cur.execute(f"""INSERT INTO tasks (id_user, task_field_type, frequency_type, task)
                         VALUES ((SELECT id FROM users WHERE telegram_id = {message.chat.id}), {task_set[0]}, {task_set[1]}, '{message.text}')
                         """)
-            bot.send_message(message.chat.id, 'Задача создана')
+            bot.send_message(message.chat.id, f"Задача №{cur.lastrowid}: создана")
     except:
         logging.critical("func add_task - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
@@ -332,7 +332,7 @@ def add_routine_tommorow(message, call_data):
                 )""")
             bot.send_message(
                 message.chat.id,
-                text=f"Задача ID:{data[0]} добавлена на исполнение")
+                text=f"Задача №{data[0]}: добавлена на исполнение")
     except Exception:
         logging.error("func add_routine_tommorow - error", exc_info=True)
 
@@ -492,6 +492,17 @@ def add_date():
     if week_day == 6:
         planning_week()
         save_logs()
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(
+                """INSERT INTO tasks(id_user, task_field_type, frequency_type, task)
+                VALUES (1, 1, 5, 'Прочитать логи')""")
+            cur.execute(
+                f"""INSERT INTO routine (date_id, task_id)
+                VALUES (
+                    (SELECT id FROM dates WHERE date = date('now','+1 day')),
+                    {cur.lastrowid})
+                """)
 
 
 def planning_day():
@@ -527,6 +538,21 @@ def help_message(message):
         message.chat.id,
         text="Привет! Лови клавиатуру",
         reply_markup=keyboard_main)
+
+
+@bot.message_handler(commands=['logs'])
+def send_logs(message):
+    try:
+        ya.upload(
+            "logs.log",
+            f"Logs/higher_mind/"
+            f"{datetime.datetime.now()}.txt")
+        bot.send_message(
+            message.chat.id,
+            text="Логи отправлены",
+            reply_markup=keyboard_main)
+    except Exception:
+        logging.warning("func send_logs - error", exc_info=True)
 
 
 @bot.message_handler(commands=['search'])
