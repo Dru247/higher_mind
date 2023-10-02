@@ -77,16 +77,18 @@ def routine_check():
 
 def set_routine_status(message, call_data):
     data = call_data.split()[1].split(";")
+    with sq.connect(config.database) as con:
+        cur = con.cursor()
+        cur.execute(f"SELECT task_id FROM routine WHERE id = {data[0]}")
+        task_id = task_id = cur.fetchone()[0]
     if data[1] == "1":
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"UPDATE routine SET success = 1 WHERE id = {data[0]}")
-            cur.execute(f"SELECT task_id FROM routine WHERE id = {data[0]}")
-            task_id = cur.fetchone()
-            bot.send_message(message.chat.id, f"Задача №{task_id[0]}: выполнена")
+            bot.send_message(message.chat.id, f"Задача №{task_id}: выполнена")
     else:
         logging.info(f"routine id={data[0]} unsuccess, status={data[1]}")
-        bot.send_message(message.chat.id, 'Очень жаль, что ты не выполнил задачу...')
+        bot.send_message(message.chat.id, f'Очень жаль, что ты не выполнил задачу №{task_id}')
 
 
 # user
@@ -103,7 +105,7 @@ def set_user(message):
 
 
 # tasks
-def choise_field_tipe(message):
+def choise_field_type(message):
     inline_keys = []
     with sq.connect(config.database) as con:
         cur = con.cursor()
@@ -136,7 +138,7 @@ def add_type_field_task(message):
             cur.execute(f"INSERT INTO task_field_types(field_name) VALUES('{message.text}')")
             bot.send_message(message.chat.id, text=f"Новый тип задач ({message.text}) добавлен", reply_markup  = keyboard_main)
         
-    except:
+    except Exception:
         logging.critical("func add_routine - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
 
@@ -159,7 +161,7 @@ def set_task(message, call_data):
             message.chat.id,
             text="Введи тип задачи",
             reply_markup=keyboard)
-    except:
+    except Exception:
         logging.critical("func set_task - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
 
@@ -178,7 +180,17 @@ def add_task_2(message, data):
                         VALUES ((SELECT id FROM users WHERE telegram_id = {message.chat.id}), {task_set[0]}, {task_set[1]}, '{message.text}')
                         """)
             bot.send_message(message.chat.id, f"Задача №{cur.lastrowid}: создана")
-    except:
+            if message.text[0] == "!":
+                last_id = cur.lastrowid
+                cur.execute("INSERT OR IGNORE INTO dates (date) VALUES (date('now','+1 day'))")
+                cur.execute(f"""
+                    INSERT INTO routine (date_id, task_id)
+                    VALUES (
+                        (SELECT id FROM dates
+                        WHERE date = date('now','+1 day')),
+                        {last_id})
+                    """)
+    except Exception:
         logging.critical("func add_task - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
 
@@ -215,7 +227,7 @@ def list_tasks(message):
                 data=msg)
         bot.send_message(
             message.chat.id,
-            text = "Письмо отправлено"
+            text="Письмо отправлено"
             )
     except Exception:
         logging.critical("func 'list_tasks' - error", exc_info=True)
@@ -226,13 +238,13 @@ def search_add(message, call_data):
     if data[1] == "people":
         bot.send_message(
             message.chat.id,
-            text = "Введи данные в формате (П.И.Д.С.А.М.Т.ВУсСвВЛГрПМКАлААм(12)(8))"
+            text="Введи данные в формате (П.И.Д.С.А.М.Т.ВУсСвВЛГрПМКАлААм(12)(8))"
             )
         bot.register_next_step_handler(message, lambda m: socket_client(config.socket_server, config.socket_port, config.coding, f"add_new: {m.text}"))
     elif data[1] == "event":
         bot.send_message(
             message.chat.id,
-            text = "Введи данные в формате (Ч.Д.С)"
+            text="Введи данные в формате (Ч.Д.С)"
             )
         bot.register_next_step_handler(message, lambda m: socket_client(config.socket_server, config.socket_port, config.coding, f"add_event: {m.text}"))
 
@@ -274,7 +286,7 @@ def info_check_email():
         for result in results:
             bot.send_message(
                 config.telegram_my_id,
-                f"На почте {result[0]} есть непрочитанные письма, "
+                text=f"На почте {result[0]} есть непрочитанные письма, "
                 f"в кол-ве {result[1]} шт.")
 
 
@@ -334,7 +346,7 @@ def add_routine_tommorow(message, call_data):
                 message.chat.id,
                 text=f"Задача №{data[0]}: добавлена на исполнение")
     except Exception:
-        logging.error("func add_routine_tommorow - error", exc_info=True)
+        logging.error(msg="func add_routine_tomorrow - error", exc_info=True)
 
 
 def count_access():
@@ -375,7 +387,7 @@ def access_check(message, call_data):
         else:
             bot.send_message(message.chat.id, text="Допуск не получен")
     except Exception:
-        logging.warning("func access_check - error", exc_info=True)
+        logging.warning(msg="func access_check - error", exc_info=True)
 
 
 def socket_client(server, port, coding, data_send):
@@ -432,7 +444,7 @@ def planning_week():
                 keyboard.row(*keys)
                 bot.send_message(
                     config.telegram_my_id,
-                    text=f"Запланируй на следую неделю {result[1]}:",
+                    text=f"Запланируй на следующую неделю {result[1]}:",
                     reply_markup=keyboard)
     except Exception:
         logging.error("func planning_week - error", exc_info=True)
@@ -601,7 +613,7 @@ def callback_query(call):
 @bot.message_handler(content_types=['text'])
 def take_text(message):
     if message.text.lower() == commands[0].lower():
-        choise_field_tipe(message)
+        choise_field_type(message)
     elif message.text.lower() == commands[1].lower():
         list_tasks(message)
     else:
