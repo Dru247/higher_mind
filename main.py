@@ -181,14 +181,12 @@ def add_task_2(message, data):
                         """)
             bot.send_message(message.chat.id, f"Задача №{cur.lastrowid}: создана")
             if message.text[0] == "!":
-                last_id = cur.lastrowid
-                cur.execute("INSERT OR IGNORE INTO dates (date) VALUES (date('now','+1 day'))")
                 cur.execute(f"""
                     INSERT INTO routine (date_id, task_id)
                     VALUES (
                         (SELECT id FROM dates
-                        WHERE date = date('now','+1 day')),
-                        {last_id})
+                        WHERE date = date('now')),
+                        {cur.lastrowid})
                     """)
     except Exception:
         logging.critical("func add_task - error", exc_info=True)
@@ -273,9 +271,6 @@ def check_email(imap_server, email_login, email_password):
             cur.execute(f"UPDATE emails SET unseen_status = {len(id_unseen_msgs)} WHERE email = '{email_login}'")
     except Exception:
         logging.error("func check email - error", exc_info=True)
-    finally:
-        mailBox.close()
-        mailBox.logout()
 
 
 def info_check_email():
