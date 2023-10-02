@@ -420,31 +420,32 @@ def morning_business():
 
 def planning_week():
     try:
-        week = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+        week = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
         date_now = datetime.date.today()
         with sq.connect(config.database) as con:
             cur = con.cursor()
             for day in range(1, 8):
-                cur.execute(f"""INSERT OR IGNORE INTO dates
-                    VALUES (NULL, date('now','+{day} day'))""")
+                cur.execute(f"""
+                    INSERT OR IGNORE INTO dates (date)
+                    VALUES (date('now','+{day} day'))""")
+            con.commit()
             cur.execute("""SELECT id, tasks.task
                 FROM tasks
                 WHERE frequency_type = 2
                 """)
-            for result in cur.fetchall():
+            for result in cur:
                 keyboard = types.InlineKeyboardMarkup()
                 keys = []
                 for number, day in enumerate(week):
                     date = date_now + datetime.timedelta(days=number + 1)
                     key = types.InlineKeyboardButton(
                         text=day,
-                        callback_data=f"""routine_week {date.isoformat()};
-                        {result[0]};{result[1]}""")
+                        callback_data=f"routine_week {date.isoformat()};{result[0]}")
                     keys.append(key)
                 keyboard.row(*keys)
                 bot.send_message(
                     config.telegram_my_id,
-                    text=f"Запланируй на следующую неделю {result[1]}:",
+                    text=f"Запланируй задачу №{result[0]}: {result[1]}",
                     reply_markup=keyboard)
     except Exception:
         logging.error("func planning_week - error", exc_info=True)
@@ -458,13 +459,13 @@ def add_routine_week(message, call_data):
             cur = con.cursor()
             cur.execute(f"""INSERT INTO routine (date_id, task_id)
                 VALUES (
-                    (SELECT id FROM dates WHERE date = {data[0]}),
+                    (SELECT id FROM dates WHERE date = '{data[0]}'),
                     {data[1]}
                     )
                 """)
         bot.send_message(
             message.chat.id,
-            text=f"{data[2]} запланировано на {data[0]}")
+            text=f"Задача №{data[1]} запланирована на {data[0]}")
     except Exception:
         logging.error("func add_routine_week - error", exc_info=True)
 
@@ -623,5 +624,6 @@ def take_text(message):
 
 
 if __name__ == "__main__":
-    threading.Thread(target=schedule_main).start()
+    # threading.Thread(target=schedule_main).start()
+    threading.Thread(target=planning_week).start()
     bot.infinity_polling()
