@@ -624,6 +624,5 @@ def take_text(message):
 
 
 if __name__ == "__main__":
-    # threading.Thread(target=schedule_main).start()
-    threading.Thread(target=planning_week).start()
+    threading.Thread(target=schedule_main).start()
     bot.infinity_polling()
