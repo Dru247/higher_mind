@@ -262,7 +262,7 @@ def search_add(message, call_data):
                     config.socket_server,
                     config.socket_port,
                     config.coding,
-                    data_send="add_people_prof: {m.text}"
+                    data_send=f"add_people_prof: {m.text}"
                     )
                 )
     except Exception:
