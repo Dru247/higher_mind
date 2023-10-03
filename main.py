@@ -232,19 +232,41 @@ def list_tasks(message):
 
 
 def search_add(message, call_data):
-    data = call_data.split()
-    if data[1] == "people":
-        bot.send_message(
-            message.chat.id,
-            text="Введи данные в формате (П.И.Д.С.А.М.Т.ВУсСвВЛГрПМКАлААм(12)(8))"
-            )
-        bot.register_next_step_handler(message, lambda m: socket_client(config.socket_server, config.socket_port, config.coding, f"add_new: {m.text}"))
-    elif data[1] == "event":
-        bot.send_message(
-            message.chat.id,
-            text="Введи данные в формате (Ч.Д.С)"
-            )
-        bot.register_next_step_handler(message, lambda m: socket_client(config.socket_server, config.socket_port, config.coding, f"add_event: {m.text}"))
+    try:
+        data = call_data.split()
+        if data[1] == "people":
+            bot.send_message(
+                message.chat.id,
+                text="Введи данные в формате (П.И.Д.С.А.М.Т.ВУсСвВЛГрПМКАлААм(12)(8))"
+                )
+            bot.register_next_step_handler(message, lambda m: socket_client(config.socket_server, config.socket_port, config.coding, f"add_new: {m.text}"))
+        elif data[1] == "event":
+            bot.send_message(
+                message.chat.id,
+                text="Введи данные в формате (Ч.Д.С)"
+                )
+            bot.register_next_step_handler(message, lambda m: socket_client(config.socket_server, config.socket_port, config.coding, f"add_event: {m.text}"))
+        elif data[1] == "peo_prof":
+            socket_client(
+                config.socket_server,
+                config.socket_port,
+                config.coding,
+                data_send="view_people_prof")
+            bot.send_message(
+                message.chat.id,
+                text="Введи данные в формате ID;Номер"
+                )
+            bot.register_next_step_handler(
+                message,
+                lambda m: socket_client(
+                    config.socket_server,
+                    config.socket_port,
+                    config.coding,
+                    data_send="add_people_prof: {m.text}"
+                    )
+                )
+    except Exception:
+        logging.critical("func 'search_add' - error", exc_info=True)
 
 
 # Email unseen messages reminder
@@ -578,8 +600,11 @@ def task_completed(message):
     key_4 = types.InlineKeyboardButton(
         text="Add event",
         callback_data='emailer_add event')
+    key_5 = types.InlineKeyboardButton(
+        text="Add people_prof",
+        callback_data='emailer_add peo_prof')
 
-    keyboard.add(key_1, key_2, key_3, key_4)
+    keyboard.add(key_1, key_2, key_3, key_4, key_5)
     bot.send_message(
         message.from_user.id,
         text="What we will do?",
