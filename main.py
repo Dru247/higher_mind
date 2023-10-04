@@ -31,12 +31,14 @@ schedule_logger.setLevel(level=logging.DEBUG)
 bot = telebot.TeleBot(config.telegram_token)
 
 commands = ["Cоздать задачу",
+            "Изменить задачу",
             "Cписок задач"]
 
 keyboard_main = types.ReplyKeyboardMarkup(resize_keyboard=True)
 item_1 = types.KeyboardButton(commands[0])
 item_2 = types.KeyboardButton(commands[1])
-keyboard_main.row(item_1, item_2)
+item_3 = types.KeyboardButton(commands[2])
+keyboard_main.row(item_1, item_2, item_3)
 
 
 # routine
@@ -105,7 +107,7 @@ def set_user(message):
 
 
 # tasks
-def choise_field_type(message):
+def choice_field_type(message):
     inline_keys = []
     with sq.connect(config.database) as con:
         cur = con.cursor()
@@ -191,6 +193,82 @@ def add_task_2(message, data):
     except Exception:
         logging.critical("func add_task - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
+
+
+def change_task_set_number(message):
+    msg = bot.send_message(chat_id=message.chat.id, text="Введи № задачи")
+    bot.register_next_step_handler(message=msg, callback=change_task_set_field)
+
+
+def change_task_set_field(message):
+    try:
+        key_1 = types.InlineKeyboardButton(
+            text="Текст",
+            callback_data=f"change_task_text {message.text}")
+        key_2 = types.InlineKeyboardButton(
+            text="Периодичность",
+            callback_data=f"change_task_frequency {message.text}")
+        keyboard = types.InlineKeyboardMarkup()
+        keyboard.row(key_1, key_2)
+        bot.send_message(
+            chat_id=message.chat.id,
+            text="Что меняем?",
+            reply_markup=keyboard)
+    except Exception:
+        logging.critical(msg="func change_task_set_field - error", exc_info=True)
+
+
+def change_task_set_text(message, call_data):
+    try:
+        data = call_data.split()[1]
+        msg = bot.send_message(chat_id=message.chat.id, text="Введи текст задачи")
+        bot.register_next_step_handler(message=msg, callback=change_task_text, data=data)
+    except Exception:
+        logging.critical(msg="func change_task_set_text - error", exc_info=True)
+
+
+def change_task_text(message, data):
+    print(message.text, data)
+    try:
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"UPDATE tasks SET task = '{message.text}' WHERE id = '{data}'")
+            bot.send_message(chat_id=message.chat.id, text="Успех")
+    except Exception:
+        logging.critical(msg="func change_task_text - error", exc_info=True)
+
+
+def change_task_set_frequency(message, call_data):
+    try:
+        data = call_data.split()[1]
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            inline_keys = []
+            cur.execute("SELECT id, name FROM task_frequency_types")
+            for record in cur:
+                inline_keys.append(
+                    types.InlineKeyboardButton(
+                        text=record[1],
+                        callback_data=f"change_task_choice_frequency {data};{record[0]}"))
+            keyboard = types.InlineKeyboardMarkup()
+            keyboard.row(*inline_keys)
+        bot.send_message(
+            message.chat.id,
+            text="Введи тип задачи",
+            reply_markup=keyboard)
+    except Exception:
+        logging.critical(msg="func change_task_set_frequency - error", exc_info=True)
+
+
+def change_task_frequency(message, call_data):
+    try:
+        data = call_data.split()[1].split(";")
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"UPDATE tasks SET frequency_type = '{data[1]}' WHERE id = '{data[0]}'")
+            bot.send_message(chat_id=message.chat.id, text="Успех")
+    except Exception:
+        logging.critical(msg="func change_task_frequency - error", exc_info=True)
 
 
 def list_tasks(message):
@@ -343,12 +421,11 @@ def tasks_tomorrow():
                     config.telegram_my_id,
                     text=f"{result[0]}: {result[1]}",
                     reply_markup=keyboard)
-
     except Exception:
         logging.error("func tasks_tomorrow - error", exc_info=True)
 
 
-def add_routine_tommorow(message, call_data):
+def add_routine_tomorrow(message, call_data):
     try:
         data = call_data.split()[1].split(";")
         with sq.connect(config.database) as con:
@@ -619,6 +696,12 @@ def callback_query(call):
         add_task(call.message, call.data)
     elif "routine_set_status" in call.data:
         set_routine_status(call.message, call.data)
+    elif "change_task_text" in call.data:
+        change_task_set_text(call.message, call.data)
+    elif "change_task_frequency" in call.data:
+        change_task_set_frequency(call.message, call.data)
+    elif "change_task_choice_frequency" in call.data:
+        change_task_frequency(call.message, call.data)
     elif "search" in call.data:
         access_check(call.message, call.data)
     elif "new_type_field_task" in call.data:
@@ -626,7 +709,7 @@ def callback_query(call):
     elif "emailer_add" in call.data:
         search_add(call.message, call.data)
     elif "routine_tomorrow" in call.data:
-        add_routine_tommorow(call.message, call.data)
+        add_routine_tomorrow(call.message, call.data)
     elif "routine_week" in call.data:
         add_routine_week(call.message, call.data)
 
@@ -634,8 +717,10 @@ def callback_query(call):
 @bot.message_handler(content_types=['text'])
 def take_text(message):
     if message.text.lower() == commands[0].lower():
-        choise_field_type(message)
-    elif message.text.lower() == commands[1].lower():
+        choice_field_type(message)
+    if message.text.lower() == commands[1].lower():
+        change_task_set_number(message)
+    elif message.text.lower() == commands[2].lower():
         list_tasks(message)
     else:
         logging.warning(
