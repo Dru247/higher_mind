@@ -47,12 +47,18 @@ def routine_check():
         preparation_emails()
         with sq.connect(config.database) as con:
             cur = con.cursor()
+            max_unseen_msgs = 40
             cur.execute("SELECT sum(unseen_status) FROM emails")
             result = cur.fetchone()[0]
             logging.info(f"Unseen msg = {result}")
-            if int(result) < 30:
-                cur.execute("UPDATE routine SET success = 1 WHERE task_id = 121 AND date_id = (SELECT id FROM dates WHERE date = date('now'))")
-            cur.execute(f"""SELECT routine.id, tasks.task, tasks.id
+            if int(result) < max_unseen_msgs:
+                cur.execute("""
+                    UPDATE routine SET success = 1
+                    WHERE task_id = 121
+                    AND date_id = (SELECT id FROM dates WHERE date = date('now'))
+                    """)
+            cur.execute(f"""
+                SELECT routine.id, tasks.task, tasks.id
                 FROM routine
                 JOIN tasks ON routine.task_id = tasks.id
                 WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
@@ -65,10 +71,17 @@ def routine_check():
                 for result in results:
                     routine_id = result[0]
                     keyboard = types.InlineKeyboardMarkup()
-                    key_1 = types.InlineKeyboardButton(text='Выполнено', callback_data=f"routine_set_status {routine_id};1")
-                    key_2 = types.InlineKeyboardButton(text='Не выполнено', callback_data=f"routine_set_status {routine_id};0")
+                    key_1 = types.InlineKeyboardButton(
+                        text='Выполнено',
+                        callback_data=f"routine_set_status {routine_id};1")
+                    key_2 = types.InlineKeyboardButton(
+                        text='Не выполнено',
+                        callback_data=f"routine_set_status {routine_id};0")
                     keyboard.add(key_1, key_2)
-                    bot.send_message(config.telegram_my_id, text=f"{result[2]}: {result[1]}", reply_markup=keyboard)
+                    bot.send_message(
+                        config.telegram_my_id,
+                        text=f"{result[2]}: {result[1]}",
+                        reply_markup=keyboard)
             else:
                 logging.info(f"func routine_daily_check_2: not exist daily routine ({results})")
                 bot.send_message(config.telegram_my_id, text=f"Сегодня задач не было")
@@ -352,7 +365,8 @@ def preparation_emails():
     emails = [
         (config.imap_server_mailru, config.my_email_mailru, config.password_my_email_mailru),
         (config.imap_server_yandex, config.my_email_yandex, config.password_my_email_yandex),
-        (config.imap_server_gmail, config.my_email_gmail, config.password_my_email_gmail)
+        (config.imap_server_gmail, config.my_email_gmail, config.password_my_email_gmail),
+        (config.imap_server_yandex, config.my_email_yandex_2, config.password_my_email_yandex_2)
     ]
 
     for imap_server, email_login, email_password in emails:
@@ -366,6 +380,7 @@ def check_email(imap_server, email_login, email_password):
         mailBox.select()
         unseen_msg = mailBox.uid('search', "UNSEEN", "ALL")
         id_unseen_msgs = unseen_msg[1][0].decode("utf-8").split(" ")
+        logging.info(msg=f"{email_login}: {id_unseen_msgs}")
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"UPDATE emails SET unseen_status = {len(id_unseen_msgs)} WHERE email = '{email_login}'")
@@ -729,5 +744,6 @@ def take_text(message):
 
 
 if __name__ == "__main__":
-    threading.Thread(target=schedule_main).start()
+    preparation_emails()
+    # threading.Thread(target=schedule_main).start()
     bot.infinity_polling()

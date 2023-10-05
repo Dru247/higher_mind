@@ -28,6 +28,8 @@ password_my_email_gmail = os.getenv("PASSWOR_EMAIL_GMAIL")
 imap_server_yandex = "imap.yandex.ru"
 my_email_yandex = os.getenv("EMAIL_YANDEX")
 password_my_email_yandex = os.getenv("PASSWORD_EMAIL_YANDEX")
+my_email_yandex_2 = os.getenv("EMAIL_YANDEX_2")
+password_my_email_yandex_2 = os.getenv("PASSWORD_EMAIL_YANDEX_2")
 
 # socket
 socket_server = os.getenv("SOCKET_SERVER")
