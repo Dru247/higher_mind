@@ -733,7 +733,7 @@ def callback_query(call):
 def take_text(message):
     if message.text.lower() == commands[0].lower():
         choice_field_type(message)
-    if message.text.lower() == commands[1].lower():
+    elif message.text.lower() == commands[1].lower():
         change_task_set_number(message)
     elif message.text.lower() == commands[2].lower():
         list_tasks(message)
@@ -744,6 +744,5 @@ def take_text(message):
 
 
 if __name__ == "__main__":
-    preparation_emails()
-    # threading.Thread(target=schedule_main).start()
+    threading.Thread(target=schedule_main).start()
     bot.infinity_polling()
