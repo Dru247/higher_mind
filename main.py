@@ -221,8 +221,11 @@ def change_task_set_field(message):
         key_2 = types.InlineKeyboardButton(
             text="Периодичность",
             callback_data=f"change_task_frequency {message.text}")
+        key_3 = types.InlineKeyboardButton(
+            text="Удалить",
+            callback_data=f"change_task_remove {message.text}")
         keyboard = types.InlineKeyboardMarkup()
-        keyboard.row(key_1, key_2)
+        keyboard.row(key_1, key_2, key_3)
         bot.send_message(
             chat_id=message.chat.id,
             text="Что меняем?",
@@ -282,6 +285,19 @@ def change_task_frequency(message, call_data):
             bot.send_message(chat_id=message.chat.id, text="Успех")
     except Exception:
         logging.critical(msg="func change_task_frequency - error", exc_info=True)
+
+
+def change_task_remove(message, call_data):
+    try:
+        data = call_data.split()[1]
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"DELETE FROM tasks WHERE id = '{data}'")
+            bot.send_message(
+                chat_id=message.chat.id,
+                text=f"Задача №{data} удалена")
+    except Exception:
+        logging.critical(msg="func change_task_remove - error", exc_info=True)
 
 
 def list_tasks(message):
@@ -715,6 +731,8 @@ def callback_query(call):
         change_task_set_text(call.message, call.data)
     elif "change_task_frequency" in call.data:
         change_task_set_frequency(call.message, call.data)
+    elif "change_task_remove" in call.data:
+        change_task_remove(call.message, call.data)
     elif "change_task_choice_frequency" in call.data:
         change_task_frequency(call.message, call.data)
     elif "search" in call.data:
