@@ -395,7 +395,7 @@ def check_email(imap_server, email_login, email_password):
         mailBox.login(email_login, email_password)
         mailBox.select()
         unseen_msg = mailBox.uid('search', "UNSEEN", "ALL")
-        id_unseen_msgs = unseen_msg[1][0].decode("utf-8").split(" ")
+        id_unseen_msgs = unseen_msg[1][0].decode("utf-8").split()
         logging.info(msg=f"{email_login}: {id_unseen_msgs}")
         with sq.connect(config.database) as con:
             cur = con.cursor()
@@ -410,10 +410,11 @@ def info_check_email():
         cur.execute("SELECT email, unseen_status FROM emails")
         results = cur.fetchall()
         for result in results:
-            bot.send_message(
-                config.telegram_my_id,
-                text=f"На почте {result[0]} есть непрочитанные письма, "
-                f"в кол-ве {result[1]} шт.")
+            if result[1] > 0:
+                bot.send_message(
+                    config.telegram_my_id,
+                    text=f"На почте {result[0]} есть непрочитанные письма, "
+                    f"в кол-ве {result[1]} шт.")
 
 
 def tasks_tomorrow():
@@ -762,5 +763,6 @@ def take_text(message):
 
 
 if __name__ == "__main__":
-    threading.Thread(target=schedule_main).start()
+    threading.Thread(target=preparation_emails).start()
+    # threading.Thread(target=schedule_main).start()
     bot.infinity_polling()
