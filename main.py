@@ -222,10 +222,13 @@ def change_task_set_field(message):
             text="Периодичность",
             callback_data=f"change_task_frequency {message.text}")
         key_3 = types.InlineKeyboardButton(
+            text="Тип",
+            callback_data=f"change_task_type {message.text}")
+        key_4 = types.InlineKeyboardButton(
             text="Удалить",
             callback_data=f"change_task_remove {message.text}")
         keyboard = types.InlineKeyboardMarkup()
-        keyboard.row(key_1, key_2, key_3)
+        keyboard.row(key_1, key_2, key_3, key_4)
         bot.send_message(
             chat_id=message.chat.id,
             text="Что меняем?",
@@ -254,6 +257,39 @@ def change_task_text(message, data):
         logging.critical(msg="func change_task_text - error", exc_info=True)
 
 
+def change_task_set_type(message, call_data):
+    try:
+        data = call_data.split()[1]
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            inline_keys = []
+            cur.execute("SELECT id, field_name FROM task_field_types")
+            for record in cur:
+                inline_keys.append(
+                    types.InlineKeyboardButton(
+                        text=record[1],
+                        callback_data=f"change_task_choice_type {data};{record[0]}"))
+            keyboard = types.InlineKeyboardMarkup()
+            keyboard.row(*inline_keys)
+        bot.send_message(
+            message.chat.id,
+            text="Введи тип задачи",
+            reply_markup=keyboard)
+    except Exception:
+        logging.critical(msg="func change_task_set_type - error", exc_info=True)
+
+
+def change_task_type(message, call_data):
+    try:
+        data = call_data.split()[1].split(";")
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"UPDATE tasks SET task_field_type = '{data[1]}' WHERE id = '{data[0]}'")
+            bot.send_message(chat_id=message.chat.id, text="Успех")
+    except Exception:
+        logging.critical(msg="func change_task_type - error", exc_info=True)
+
+
 def change_task_set_frequency(message, call_data):
     try:
         data = call_data.split()[1]
@@ -270,7 +306,7 @@ def change_task_set_frequency(message, call_data):
             keyboard.row(*inline_keys)
         bot.send_message(
             message.chat.id,
-            text="Введи тип задачи",
+            text="Введи периодичность задачи",
             reply_markup=keyboard)
     except Exception:
         logging.critical(msg="func change_task_set_frequency - error", exc_info=True)
@@ -730,12 +766,16 @@ def callback_query(call):
         set_routine_status(call.message, call.data)
     elif "change_task_text" in call.data:
         change_task_set_text(call.message, call.data)
+    elif "change_task_type" in call.data:
+        change_task_set_type(call.message, call.data)
+    elif "change_task_choice_type" in call.data:
+        change_task_type(call.message, call.data)
     elif "change_task_frequency" in call.data:
         change_task_set_frequency(call.message, call.data)
-    elif "change_task_remove" in call.data:
-        change_task_remove(call.message, call.data)
     elif "change_task_choice_frequency" in call.data:
         change_task_frequency(call.message, call.data)
+    elif "change_task_remove" in call.data:
+        change_task_remove(call.message, call.data)
     elif "search" in call.data:
         access_check(call.message, call.data)
     elif "new_type_field_task" in call.data:
