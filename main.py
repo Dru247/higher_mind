@@ -86,24 +86,24 @@ def routine_check():
                 logging.info(f"func routine_daily_check_2: not exist daily routine ({results})")
                 bot.send_message(config.telegram_my_id, text=f"Сегодня задач не было")
     except:
-        logging.critical("func routine_daily_check_2 - error", exc_info=True)
-        bot.send_message(config.telegram_my_id, text="Некорректно")
+        logging.critical(msg="func routine_daily_check_2 - error", exc_info=True)
+        bot.send_message(chat_id=config.telegram_my_id, text="Некорректно")
 
 
 def set_routine_status(message, call_data):
-    data = call_data.split()[1].split(";")
-    with sq.connect(config.database) as con:
-        cur = con.cursor()
-        cur.execute(f"SELECT task_id FROM routine WHERE id = {data[0]}")
-        task_id = task_id = cur.fetchone()[0]
-    if data[1] == "1":
+    try:
+        data = call_data.split()[1].split(";")
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"UPDATE routine SET success = 1 WHERE id = {data[0]}")
-            bot.send_message(message.chat.id, f"Задача №{task_id}: выполнена")
-    else:
-        logging.info(f"routine id={data[0]} unsuccess, status={data[1]}")
-        bot.send_message(message.chat.id, f'Очень жаль, что ты не выполнил задачу №{task_id}')
+            cur.execute(f"UPDATE routine SET success = {data[1]} WHERE id = {data[0]}")
+            cur.execute(f"SELECT task_id FROM routine WHERE id = {data[0]}")
+            task_id = cur.fetchone()[0]
+        if data[1] == "1":
+            bot.send_message(chat_id=message.chat.id, text=f"Задача №{task_id} выполнена")
+        else:
+            bot.send_message(chat_id=message.chat.id, text=f"Задача №{task_id} не выполнена")
+    except Exception:
+        logging.warning(msg="func set_routine_status - error", exc_info=True)
 
 
 # user
@@ -112,9 +112,11 @@ def set_user(message):
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"INSERT INTO users (first_name, telegram_id) VALUES ('{message.text}', {message.chat.id})")
-            bot.send_message(message.chat.id, 'Приятно познакомиться', reply_markup  = keyboard_main)
-    
-    except:
+            bot.send_message(
+                chat_id=message.chat.id,
+                text="Приятно познакомиться",
+                reply_markup=keyboard_main)
+    except Exception:
         logging.warning("func set_user - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
 
@@ -457,9 +459,19 @@ def tasks_tomorrow():
     try:
         date = datetime.date.today() + datetime.timedelta(days=1)
         with sq.connect(config.database) as con:
+            cur = con.cursor()
+            try:
+                cur.execute("""
+                    SELECT count() FROM routine
+                    WHERE date_id = (SELECT id FROM dates WHERE date = date('now', '+1 day'))
+                    """)
+                bot.send_message(
+                    config.telegram_my_id,
+                    text=f"Необходимо выполнить не менее {count_access()[1] - int(cur.fetchone()[0])} заданий")
+            except Exception:
+                logging.error("func tasks_tomorrow:count_routine - error", exc_info=True)
             relationships = [(1, 5), (2, 3), (3, 2), (4, 2)]
             results = []
-            cur = con.cursor()
             for field, limit in relationships:
                 cur.execute(
                     f"""SELECT id, task FROM tasks
@@ -513,27 +525,29 @@ def add_routine_tomorrow(message, call_data):
 
 def count_access():
     try:
+        week_days = 7
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("SELECT count(event) FROM events")
             count_events = int(cur.fetchone()[0])
             cur.execute("SELECT count(success) FROM routine WHERE success = 1")
             count_routine = int(cur.fetchone()[0])
-            cur.execute("SELECT count(date) FROM dates")
+            cur.execute("SELECT count(date) FROM dates WHERE date < date('now')")
             count_dates = int(cur.fetchone()[0])
-            result = (count_routine // count_events) // (count_dates // 7)
+            result = (count_routine / count_events) / (count_dates / week_days)
+            need_routine = ((count_dates / week_days) * count_events * 10) - count_routine
             logging.info(
                 f"func count_access: "
                 f"({count_routine} / {count_events}) / ({count_dates} / 7) "
                 f"= {result}")
-            return result
+            return int(result), int(need_routine)
     except Exception:
         logging.warning("func count_access - error", exc_info=True)
 
 
 def access_check(message, call_data):
     try:
-        ratio_success = count_access()
+        ratio_success = count_access()[0]
         if ratio_success > 1:
             with sq.connect(config.database) as con:
                 cur = con.cursor()
@@ -803,5 +817,6 @@ def take_text(message):
 
 
 if __name__ == "__main__":
+    print(count_access())
     threading.Thread(target=schedule_main).start()
     bot.infinity_polling()
