@@ -249,7 +249,6 @@ def change_task_set_text(message, call_data):
 
 
 def change_task_text(message, data):
-    print(message.text, data)
     try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
@@ -817,6 +816,5 @@ def take_text(message):
 
 
 if __name__ == "__main__":
-    print(count_access())
     threading.Thread(target=schedule_main).start()
     bot.infinity_polling()
