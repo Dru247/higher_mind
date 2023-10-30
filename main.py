@@ -750,19 +750,22 @@ def task_completed(message):
         text="Start search",
         callback_data='search search')
     key_2 = types.InlineKeyboardButton(
+        text="Start search all",
+        callback_data='search search_all')
+    key_3 = types.InlineKeyboardButton(
         text="Email",
         callback_data='search email')
-    key_3 = types.InlineKeyboardButton(
+    key_4 = types.InlineKeyboardButton(
         text="Add people",
         callback_data='emailer_add people')
-    key_4 = types.InlineKeyboardButton(
+    key_5 = types.InlineKeyboardButton(
         text="Add event",
         callback_data='emailer_add event')
-    key_5 = types.InlineKeyboardButton(
+    key_6 = types.InlineKeyboardButton(
         text="Add people_prof",
         callback_data='emailer_add peo_prof')
 
-    keyboard.add(key_1, key_2, key_3, key_4, key_5)
+    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6)
     bot.send_message(
         message.from_user.id,
         text="What we will do?",
