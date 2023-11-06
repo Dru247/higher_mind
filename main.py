@@ -547,7 +547,19 @@ def count_access():
 def access_check(message, call_data):
     try:
         ratio_success = count_access()[0]
-        if ratio_success > 1:
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute("""
+                SELECT EXISTS(
+                SELECT * FROM routine
+                WHERE task_id = 91
+                AND success = 0
+                AND date_id IN
+                (SELECT id FROM dates
+                WHERE date BETWEEN date('now', '-1 day') AND date('now', '-1 day')))
+                """)
+            bad_hand = cur.fetchone()
+        if ratio_success > 1 and bad_hand is not None:
             with sq.connect(config.database) as con:
                 cur = con.cursor()
                 cur.execute("INSERT INTO events (event) VALUES(1)")
