@@ -556,7 +556,7 @@ def access_check(message, call_data):
                 AND success = 0
                 AND date_id IN
                 (SELECT id FROM dates
-                WHERE date BETWEEN date('now', '-1 day') AND date('now', '-1 day')))
+                WHERE date BETWEEN date('now', '-3 day') AND date('now', '-1 day')))
                 """)
             bad_hand = cur.fetchone()
         if ratio_success > 1 and bad_hand is not None:
