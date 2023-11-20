@@ -381,15 +381,36 @@ def search_add(message, call_data):
         if data[1] == "people":
             bot.send_message(
                 message.chat.id,
-                text="Введи данные в формате (П.И.Д.С.А.М.Т.ВУсСвВЛГрПМКАлААм(12)(8))"
+                text="Введи данные в формате Nam;Add;Met;Pho"
                 )
-            bot.register_next_step_handler(message, lambda m: socket_client(config.socket_server, config.socket_port, config.coding, f"add_new: {m.text}"))
+            bot.register_next_step_handler(
+                message,
+                lambda m: socket_client(
+                    config.socket_server,
+                    config.socket_port,
+                    config.coding,
+                    data_send=f"add_new: {m.text}"
+                )
+            )
         elif data[1] == "event":
+            socket_client(
+                config.socket_server,
+                config.socket_port,
+                config.coding,
+                data_send="view_people_prof")
             bot.send_message(
                 message.chat.id,
-                text="Введи данные в формате (Ч.Д.С)"
+                text="Введи данные в формате ID_Peo;Dat;Coun"
                 )
-            bot.register_next_step_handler(message, lambda m: socket_client(config.socket_server, config.socket_port, config.coding, f"add_event: {m.text}"))
+            bot.register_next_step_handler(
+                message,
+                lambda m: socket_client(
+                    config.socket_server,
+                    config.socket_port,
+                    config.coding,
+                    data_send=f"add_event: {m.text}"
+                    )
+                )
         elif data[1] == "peo_prof":
             socket_client(
                 config.socket_server,
@@ -398,7 +419,7 @@ def search_add(message, call_data):
                 data_send="view_people_prof")
             bot.send_message(
                 message.chat.id,
-                text="Введи данные в формате ID;Номер"
+                text="Введи данные в формате ID_Peo;Number"
                 )
             bot.register_next_step_handler(
                 message,
@@ -407,6 +428,25 @@ def search_add(message, call_data):
                     config.socket_port,
                     config.coding,
                     data_send=f"add_people_prof: {m.text}"
+                    )
+                )
+        elif data[1] == "grades":
+            socket_client(
+                config.socket_server,
+                config.socket_port,
+                config.coding,
+                data_send="view_people_prof")
+            bot.send_message(
+                message.chat.id,
+                text="Введи данные в формате ID_Peo;12char"
+                )
+            bot.register_next_step_handler(
+                message,
+                lambda m: socket_client(
+                    config.socket_server,
+                    config.socket_port,
+                    config.coding,
+                    data_send=f"add_grades: {m.text}"
                     )
                 )
     except Exception:
@@ -776,8 +816,11 @@ def task_completed(message):
     key_6 = types.InlineKeyboardButton(
         text="Add people_prof",
         callback_data='emailer_add peo_prof')
+    key_7 = types.InlineKeyboardButton(
+        text="Add grades",
+        callback_data='emailer_add grades')
 
-    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6)
+    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7)
     bot.send_message(
         message.from_user.id,
         text="What we will do?",
