@@ -1,6 +1,5 @@
 import config
 import datetime
-import funcs
 import logging
 import imaplib
 import os
@@ -12,8 +11,6 @@ import threading
 import time
 import yadisk
 
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pytz import timezone
 from telebot import types
 
@@ -133,13 +130,13 @@ def choice_field_type(message):
                     text=record[1],
                     callback_data=f"task_select_field {record[0]}"))
     inline_keys.append(types.InlineKeyboardButton(
-                            text='Новый тип задач',
+                            text='Новый проект',
                             callback_data='new_type_field_task'))
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.row(*inline_keys)
+    keyboard.add(*inline_keys)
     bot.send_message(
         message.from_user.id,
-        text="Введи тип задачи",
+        text="Выбери проект",
         reply_markup=keyboard)
 
 
@@ -339,38 +336,43 @@ def change_task_remove(message, call_data):
 
 def list_tasks(message):
     try:
+        inline_keys = []
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute("""SELECT tasks.id, task_field_types.field_name,
-                task_frequency_types.name, tasks.task, tasks.datetime_creation
-                FROM tasks
-                JOIN task_field_types ON task_field_types.id = tasks.task_field_type
-                JOIN task_frequency_types ON task_frequency_types.id = tasks.frequency_type
-                WHERE tasks.id NOT IN (SELECT task_id FROM routine WHERE success = 1)
-                OR frequency_type != 5
-                ORDER BY task_field_types.field_name
-                """)
-            result = cur.fetchall()
-            email_text = ""
-            for number, text in enumerate(result):
-                email_text += f"{number}: {text}\n"
-            msg = MIMEMultipart()
-            msg["From"] = config.my_email_mailru
-            msg["To"] = config.my_email_yandex
-            msg["Subject"] = "Список задач"
-            part = MIMEText(email_text)
-            msg.attach(part)
-            funcs.send_email(
-                smtp_server=config.smtp_server_mailru,
-                smtp_port=config.smtp_port_mailru,
-                sender_email=config.my_email_mailru,
-                sender_email_password=config.password_my_email_mailru,
-                recipient_email=config.my_email_yandex,
-                data=msg)
+            cur.execute("SELECT id, field_name FROM task_field_types")
+            for record in cur:
+                inline_keys.append(
+                    types.InlineKeyboardButton(
+                        text=record[1],
+                        callback_data=f"list_tasks {record[0]}"))
+        keyboard = types.InlineKeyboardMarkup()
+        keyboard.add(*inline_keys)
         bot.send_message(
-            message.chat.id,
-            text="Письмо отправлено"
-            )
+            message.from_user.id,
+            text="Выбери проект",
+            reply_markup=keyboard)
+
+    except Exception:
+        logging.critical("func 'list_tasks' - error", exc_info=True)
+
+
+def list_tasks_view(message, call_data):
+    try:
+        project = call_data.split()[1]
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(f"""
+                SELECT id, task
+                FROM tasks
+                WHERE task_field_type = {project}
+                AND (id NOT IN (SELECT task_id FROM routine WHERE success = 1)
+                OR frequency_type != 5)
+            """)
+            for row in cur.fetchall():
+                bot.send_message(
+                    chat_id=message.chat.id,
+                    text=f"{row[0]}: {row[1]}")
+
     except Exception:
         logging.critical("func 'list_tasks' - error", exc_info=True)
 
@@ -509,25 +511,15 @@ def tasks_tomorrow():
                     text=f"Необходимо выполнить не менее {count_access()[1] - int(cur.fetchone()[0])} заданий")
             except Exception:
                 logging.error("func tasks_tomorrow:count_routine - error", exc_info=True)
-            relationships = [(1, 5), (2, 3), (3, 2), (4, 2)]
-            results = []
-            for field, limit in relationships:
-                cur.execute(
-                    f"""SELECT id, task FROM tasks
-                    WHERE id NOT IN
-                        (SELECT task_id FROM routine
-                        WHERE success = 1
-                        OR date_id =
-                        (SELECT id FROM dates WHERE date = date('now')))
-                    AND frequency_type = 5
-                    AND task_field_type = {field}
-                    ORDER BY random()
-                    LIMIT {limit}
-                    """)
-                for result in cur.fetchall():
-                    results.append(result)
-
-            for result in results:
+            cur.execute(f"""
+                SELECT id, task FROM tasks
+                WHERE task_field_type = (SELECT project_id FROM week_project ORDER BY id DESC LIMIT 1)
+                AND (id NOT IN (SELECT task_id FROM routine WHERE success = 1)
+                OR frequency_type != 5)
+                ORDER BY random()
+                LIMIT 8
+                """)
+            for result in cur.fetchall():
                 keyboard = types.InlineKeyboardMarkup()
                 keyboard.add(
                     types.InlineKeyboardButton(
@@ -540,6 +532,7 @@ def tasks_tomorrow():
                     config.telegram_my_id,
                     text=f"{result[0]}: {result[1]}",
                     reply_markup=keyboard)
+
     except Exception:
         logging.error("func tasks_tomorrow - error", exc_info=True)
 
@@ -647,14 +640,31 @@ def morning_business():
 
 def planning_week():
     try:
-        week = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
         date_now = datetime.date.today()
+        tomorrow = date_now + datetime.timedelta(days=1)
         with sq.connect(config.database) as con:
             cur = con.cursor()
+            cur.execute("""
+                SELECT id, field_name
+                FROM task_field_types
+                ORDER BY random()
+                LIMIT 1
+                """)
+            cur.execute("SELECT id, field_name FROM task_field_types ORDER BY random() LIMIT 1")
+            result_project = cur.fetchone()
+            bot.send_message(
+                config.telegram_my_id,
+                text=f"{result_project[1]} - проект следующей недели")
+            cur.execute(f"""
+                INSERT INTO week_project (week, project_id)
+                VALUES ('{tomorrow.isocalendar()[0]}-{tomorrow.isocalendar()[1]}', {result_project[1]})
+                """)
+            week = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
             for day in range(1, 8):
                 cur.execute(f"""
                     INSERT OR IGNORE INTO dates (date)
-                    VALUES (date('now','+{day} day'))""")
+                    VALUES (date('now','+{day} day'))
+                """)
             con.commit()
             cur.execute("""SELECT id, tasks.task
                 FROM tasks
@@ -847,6 +857,8 @@ def callback_query(call):
         change_task_frequency(call.message, call.data)
     elif "change_task_remove" in call.data:
         change_task_remove(call.message, call.data)
+    elif "list_tasks" in call.data:
+        list_tasks_view(call.message, call.data)
     elif "search" in call.data:
         access_check(call.message, call.data)
     elif "new_type_field_task" in call.data:
