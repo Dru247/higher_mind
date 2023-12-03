@@ -508,7 +508,7 @@ def tasks_tomorrow():
                     """)
                 bot.send_message(
                     config.telegram_my_id,
-                    text=f"Необходимо выполнить не менее {count_access()[1] - int(cur.fetchone()[0])} заданий")
+                    text=f"Баланс {get_balance()}")
             except Exception:
                 logging.error("func tasks_tomorrow:count_routine - error", exc_info=True)
             cur.execute(f"""
@@ -555,8 +555,9 @@ def add_routine_tomorrow(message, call_data):
         logging.error(msg="func add_routine_tomorrow - error", exc_info=True)
 
 
-def count_access():
+def get_balance():
     try:
+        day_routines = 8
         week_days = 7
         with sq.connect(config.database) as con:
             cur = con.cursor()
@@ -566,20 +567,18 @@ def count_access():
             count_routine = int(cur.fetchone()[0])
             cur.execute("SELECT count(date) FROM dates WHERE date < date('now')")
             count_dates = int(cur.fetchone()[0])
-            result = (count_routine / count_events) / (count_dates / week_days)
-            need_routine = ((count_dates / week_days) * count_events * 10) - count_routine
-            logging.info(
-                f"func count_access: "
-                f"({count_routine} / {count_events}) / ({count_dates} / 7) "
-                f"= {result}")
-            return int(result), int(need_routine)
+            routine_balance = (count_routine - count_dates * day_routines) / day_routines
+            event_balance = count_dates - count_events * week_days
+            balance = event_balance + routine_balance
+            logging.info(f"Balance {balance}")
+            return balance
     except Exception:
         logging.warning("func count_access - error", exc_info=True)
 
 
 def access_check(message, call_data):
     try:
-        ratio_success = count_access()[0]
+        balance = get_balance()
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("""
@@ -589,23 +588,29 @@ def access_check(message, call_data):
                 AND success = 0
                 AND date_id IN
                 (SELECT id FROM dates
-                WHERE date BETWEEN date('now', '-6 day') AND date('now', '-1 day')))
+                WHERE date BETWEEN date('now', '-15 day') AND date('now', '-1 day')))
                 """)
             bad_hand = cur.fetchone()
-        if ratio_success > 1 and bad_hand is not None:
+        if balance > 0 and not bad_hand:
             with sq.connect(config.database) as con:
                 cur = con.cursor()
                 cur.execute("INSERT INTO events (event) VALUES(1)")
             bot.send_message(
                 message.chat.id,
-                text=f"Допуск получен ({ratio_success})")
+                text=f"Допуск получен:\nбаланс: {balance}\n"
+                     f"3НЕ: {bad_hand[0]}"
+            )
             socket_client(
                 config.socket_server,
                 config.socket_port,
                 config.coding,
                 call_data.split()[1])
         else:
-            bot.send_message(message.chat.id, text="Допуск не получен")
+            bot.send_message(
+                message.chat.id,
+                text=f"Допуск НЕ получен:\nбаланс: {balance}\n"
+                     f"3НЕ: {bad_hand[0]}"
+            )
     except Exception:
         logging.warning(msg="func access_check - error", exc_info=True)
 
