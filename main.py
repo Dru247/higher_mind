@@ -662,7 +662,10 @@ def planning_week():
                 text=f"{result_project[1]} - проект следующей недели")
             cur.execute(f"""
                 INSERT INTO week_project (week, project_id)
-                VALUES ('{tomorrow.isocalendar()[0]}-{tomorrow.isocalendar()[1]}', {result_project[1]})
+                VALUES (
+                    '{tomorrow.isocalendar()[0]}-{tomorrow.isocalendar()[1]}',
+                    {result_project[0]}
+                    )
                 """)
             week = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
             for day in range(1, 8):
