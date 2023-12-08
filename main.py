@@ -362,16 +362,17 @@ def list_tasks_view(message, call_data):
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"""
-                SELECT id, task
+                SELECT tasks.id, tasks.task, task_frequency_types.name
                 FROM tasks
+                JOIN  task_frequency_types ON tasks.frequency_type = task_frequency_types.id
                 WHERE task_field_type = {project}
-                AND (id NOT IN (SELECT task_id FROM routine WHERE success = 1)
+                AND (tasks.id NOT IN (SELECT task_id FROM routine WHERE success = 1)
                 OR frequency_type != 5)
             """)
             for row in cur.fetchall():
                 bot.send_message(
                     chat_id=message.chat.id,
-                    text=f"{row[0]}: {row[1]}")
+                    text=f"{row[0]}/{row[2]}: {row[1]}")
 
     except Exception:
         logging.critical("func 'list_tasks' - error", exc_info=True)
@@ -636,7 +637,7 @@ def morning_business():
             """)
         bot.send_message(
             config.telegram_my_id,
-            text="Сегодня у тебя следующие задачи:")
+            text=f"Баланс {get_balance()}\nСегодня у тебя следующие задачи:")
         for result in cur:
             bot.send_message(
                 config.telegram_my_id,
