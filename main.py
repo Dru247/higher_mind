@@ -1,21 +1,17 @@
+import access
 import config
 import datetime
+import funcs
 import logging
-import imaplib
-import os
 import schedule
-import socket
 import sqlite3 as sq
 import telebot
 import threading
 import time
-import yadisk
 
 from pytz import timezone
 from telebot import types
 
-
-ya = yadisk.YaDisk(token=config.ya_disk_token)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,7 +37,7 @@ keyboard_main.row(item_1, item_2, item_3)
 # routine
 def routine_check():
     try:
-        preparation_emails()
+        funcs.preparation_emails()
         with sq.connect(config.database) as con:
             cur = con.cursor()
             max_unseen_msgs = 40
@@ -378,125 +374,6 @@ def list_tasks_view(message, call_data):
         logging.critical("func 'list_tasks' - error", exc_info=True)
 
 
-def search_add(message, call_data):
-    try:
-        data = call_data.split()
-        if data[1] == "people":
-            bot.send_message(
-                message.chat.id,
-                text="Введи данные в формате Nam;Add;Met;Pho"
-                )
-            bot.register_next_step_handler(
-                message,
-                lambda m: socket_client(
-                    config.socket_server,
-                    config.socket_port,
-                    config.coding,
-                    data_send=f"add_new: {m.text}"
-                )
-            )
-        elif data[1] == "event":
-            socket_client(
-                config.socket_server,
-                config.socket_port,
-                config.coding,
-                data_send="view_people_prof")
-            bot.send_message(
-                message.chat.id,
-                text="Введи данные в формате ID_Peo;Dat;Coun"
-                )
-            bot.register_next_step_handler(
-                message,
-                lambda m: socket_client(
-                    config.socket_server,
-                    config.socket_port,
-                    config.coding,
-                    data_send=f"add_event: {m.text}"
-                    )
-                )
-        elif data[1] == "peo_prof":
-            socket_client(
-                config.socket_server,
-                config.socket_port,
-                config.coding,
-                data_send="view_people_prof")
-            bot.send_message(
-                message.chat.id,
-                text="Введи данные в формате ID_Peo;Number"
-                )
-            bot.register_next_step_handler(
-                message,
-                lambda m: socket_client(
-                    config.socket_server,
-                    config.socket_port,
-                    config.coding,
-                    data_send=f"add_people_prof: {m.text}"
-                    )
-                )
-        elif data[1] == "grades":
-            socket_client(
-                config.socket_server,
-                config.socket_port,
-                config.coding,
-                data_send="view_people_prof")
-            bot.send_message(
-                message.chat.id,
-                text="Введи данные в формате ID_Peo;12char"
-                )
-            bot.register_next_step_handler(
-                message,
-                lambda m: socket_client(
-                    config.socket_server,
-                    config.socket_port,
-                    config.coding,
-                    data_send=f"add_grades: {m.text}"
-                    )
-                )
-    except Exception:
-        logging.critical("func 'search_add' - error", exc_info=True)
-
-
-# Email unseen messages reminder
-def preparation_emails():
-    emails = [
-        (config.imap_server_mailru, config.my_email_mailru, config.password_my_email_mailru),
-        (config.imap_server_yandex, config.my_email_yandex, config.password_my_email_yandex),
-        (config.imap_server_gmail, config.my_email_gmail, config.password_my_email_gmail),
-        (config.imap_server_yandex, config.my_email_yandex_2, config.password_my_email_yandex_2)
-    ]
-
-    for imap_server, email_login, email_password in emails:
-        check_email(imap_server, email_login, email_password)
-
-
-def check_email(imap_server, email_login, email_password):
-    try:
-        mailBox = imaplib.IMAP4_SSL(imap_server)
-        mailBox.login(email_login, email_password)
-        mailBox.select()
-        unseen_msg = mailBox.uid('search', "UNSEEN", "ALL")
-        id_unseen_msgs = unseen_msg[1][0].decode("utf-8").split()
-        logging.info(msg=f"{email_login}: {id_unseen_msgs}")
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            cur.execute(f"UPDATE emails SET unseen_status = {len(id_unseen_msgs)} WHERE email = '{email_login}'")
-    except Exception:
-        logging.error("func check email - error", exc_info=True)
-
-
-def info_check_email():
-    with sq.connect(config.database) as con:
-        cur = con.cursor()
-        cur.execute("SELECT email, unseen_status FROM emails")
-        results = cur.fetchall()
-        for result in results:
-            if result[1] > 0:
-                bot.send_message(
-                    config.telegram_my_id,
-                    text=f"На почте {result[0]} есть непрочитанные письма, "
-                    f"в кол-ве {result[1]} шт.")
-
-
 def tasks_tomorrow():
     try:
         date = datetime.date.today() + datetime.timedelta(days=1)
@@ -509,14 +386,13 @@ def tasks_tomorrow():
                     """)
                 bot.send_message(
                     config.telegram_my_id,
-                    text=f"Баланс {get_balance()}")
+                    text=f"Баланс {access.get_balance()}")
             except Exception:
                 logging.error("func tasks_tomorrow:count_routine - error", exc_info=True)
             cur.execute(f"""
                 SELECT id, task FROM tasks
                 WHERE task_field_type = (SELECT project_id FROM week_project ORDER BY id DESC LIMIT 1)
-                AND (id NOT IN (SELECT task_id FROM routine WHERE success = 1)
-                OR frequency_type != 5)
+                AND id NOT IN (SELECT task_id FROM routine WHERE success = 1 OR frequency_type != 5)
                 ORDER BY random()
                 LIMIT 8
                 """)
@@ -556,76 +432,9 @@ def add_routine_tomorrow(message, call_data):
         logging.error(msg="func add_routine_tomorrow - error", exc_info=True)
 
 
-def get_balance():
-    try:
-        day_routines = 8
-        week_days = 7
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            cur.execute("SELECT count(event) FROM events")
-            count_events = int(cur.fetchone()[0])
-            cur.execute("SELECT count(success) FROM routine WHERE success = 1")
-            count_routine = int(cur.fetchone()[0])
-            cur.execute("SELECT count(date) FROM dates WHERE date < date('now')")
-            count_dates = int(cur.fetchone()[0])
-            routine_balance = (count_routine - count_dates * day_routines) / day_routines
-            event_balance = count_dates - count_events * week_days
-            balance = event_balance + routine_balance
-            logging.info(f"Balance {balance}")
-            return balance
-    except Exception:
-        logging.warning("func count_access - error", exc_info=True)
-
-
-def access_check(message, call_data):
-    try:
-        balance = get_balance()
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            cur.execute("""
-                SELECT EXISTS(
-                SELECT * FROM routine
-                WHERE task_id = 91
-                AND success = 0
-                AND date_id IN
-                (SELECT id FROM dates
-                WHERE date BETWEEN date('now', '-15 day') AND date('now', '-1 day')))
-                """)
-            bad_hand = cur.fetchone()
-        if balance > 0 and not bad_hand:
-            with sq.connect(config.database) as con:
-                cur = con.cursor()
-                cur.execute("INSERT INTO events (event) VALUES(1)")
-            bot.send_message(
-                message.chat.id,
-                text=f"Допуск получен:\nбаланс: {balance}\n"
-                     f"3НЕ: {bad_hand[0]}"
-            )
-            socket_client(
-                config.socket_server,
-                config.socket_port,
-                config.coding,
-                call_data.split()[1])
-        else:
-            bot.send_message(
-                message.chat.id,
-                text=f"Допуск НЕ получен:\nбаланс: {balance}\n"
-                     f"3НЕ: {bad_hand[0]}"
-            )
-    except Exception:
-        logging.warning(msg="func access_check - error", exc_info=True)
-
-
-def socket_client(server, port, coding, data_send):
-    sock = socket.socket()
-    sock.connect((server, port))
-    sock.send(data_send.encode(coding))
-    sock.close()
-
-
 def morning_business():
-    preparation_emails()
-    info_check_email()
+    funcs.preparation_emails()
+    funcs.info_check_email()
     with sq.connect(config.database) as con:
         cur = con.cursor()
         cur.execute(
@@ -637,7 +446,7 @@ def morning_business():
             """)
         bot.send_message(
             config.telegram_my_id,
-            text=f"Баланс {get_balance()}\nСегодня у тебя следующие задачи:")
+            text=f"Баланс {access.get_balance()}\nСегодня у тебя следующие задачи:")
         for result in cur:
             bot.send_message(
                 config.telegram_my_id,
@@ -716,21 +525,6 @@ def add_routine_week(message, call_data):
         logging.error("func add_routine_week - error", exc_info=True)
 
 
-def save_logs():
-    try:
-        ya.upload(
-            "logs.log",
-            f"Logs/higher_mind/"
-            f"{datetime.datetime.today().year}-"
-            f"{datetime.datetime.today().isocalendar()[1]}.logs")
-        if os.path.exists("logs.log"):
-            os.remove("logs.log")
-            with open("logs.log", 'w') as fp:
-                pass
-    except Exception:
-        logging.warning("func save_logs - error", exc_info=True)
-
-
 def add_date():
     week_day = datetime.datetime.today().weekday()
     with sq.connect(config.database) as con:
@@ -750,7 +544,7 @@ def add_date():
                 """)
     if week_day == 6:
         planning_week()
-        save_logs()
+        funcs.save_logs()
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(
@@ -800,18 +594,8 @@ def help_message(message):
 
 
 @bot.message_handler(commands=['logs'])
-def send_logs(message):
-    try:
-        ya.upload(
-            "logs.log",
-            f"Logs/higher_mind/"
-            f"{datetime.datetime.now()}.txt")
-        bot.send_message(
-            message.chat.id,
-            text="Логи отправлены",
-            reply_markup=keyboard_main)
-    except Exception:
-        logging.warning("func send_logs - error", exc_info=True)
+def send_log(message):
+    funcs.send_logs(message)
 
 
 @bot.message_handler(commands=['search'])
@@ -868,16 +652,16 @@ def callback_query(call):
         change_task_remove(call.message, call.data)
     elif "list_tasks" in call.data:
         list_tasks_view(call.message, call.data)
-    elif "search" in call.data:
-        access_check(call.message, call.data)
     elif "new_type_field_task" in call.data:
         set_type_field_task(call.message)
-    elif "emailer_add" in call.data:
-        search_add(call.message, call.data)
     elif "routine_tomorrow" in call.data:
         add_routine_tomorrow(call.message, call.data)
     elif "routine_week" in call.data:
         add_routine_week(call.message, call.data)
+    elif "search" in call.data:
+        access.access_check(call.message, call.data)
+    elif "emailer_add" in call.data:
+        access.search_add(call.message, call.data)
 
 
 @bot.message_handler(content_types=['text'])
