@@ -377,18 +377,11 @@ def list_tasks_view(message, call_data):
 def tasks_tomorrow():
     try:
         date = datetime.date.today() + datetime.timedelta(days=1)
+        bot.send_message(
+            config.telegram_my_id,
+            text=f"Баланс {access.get_balance()}")
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            try:
-                cur.execute("""
-                    SELECT count() FROM routine
-                    WHERE date_id = (SELECT id FROM dates WHERE date = date('now', '+1 day'))
-                    """)
-                bot.send_message(
-                    config.telegram_my_id,
-                    text=f"Баланс {access.get_balance()}")
-            except Exception:
-                logging.error("func tasks_tomorrow:count_routine - error", exc_info=True)
             cur.execute(f"""
                 SELECT id, task FROM tasks
                 WHERE task_field_type = (SELECT project_id FROM week_project ORDER BY id DESC LIMIT 1)

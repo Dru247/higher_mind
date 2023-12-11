@@ -26,9 +26,9 @@ def get_balance():
             count_dates = int(cur.fetchone()[0])
             routine_balance = (count_routine - count_dates * day_routines) / day_routines
             event_balance = count_dates - count_events * week_days
-            balance = event_balance + routine_balance
+            balance = event_balance + routine_balance / week_days
             logging.info(f"Balance {balance}")
-            return balance
+            return round(balance, 3)
     except Exception:
         logging.warning("func count_access - error", exc_info=True)
 
@@ -48,7 +48,7 @@ def access_check(message, call_data):
                 WHERE date BETWEEN date('now', '-15 day') AND date('now', '-1 day')))
                 """)
             bad_hand = cur.fetchone()
-        if balance > 0 and not bad_hand:
+        if balance > 1 and not bad_hand:
             with sq.connect(config.database) as con:
                 cur = con.cursor()
                 cur.execute("INSERT INTO events (event) VALUES(1)")
