@@ -26,7 +26,7 @@ def get_balance():
             count_dates = int(cur.fetchone()[0])
             routine_balance = (count_routine - count_dates * day_routines) / day_routines
             event_balance = count_dates - count_events * week_days
-            balance = event_balance + routine_balance / week_days
+            balance = (event_balance + routine_balance) / week_days
             logging.info(f"Balance {balance}")
             return round(balance, 3)
     except Exception:

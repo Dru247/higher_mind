@@ -379,7 +379,7 @@ def tasks_tomorrow():
         date = datetime.date.today() + datetime.timedelta(days=1)
         bot.send_message(
             config.telegram_my_id,
-            text=f"Баланс {access.get_balance()}")
+            text=f"Баланс: {access.get_balance()}")
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"""
@@ -439,7 +439,7 @@ def morning_business():
             """)
         bot.send_message(
             config.telegram_my_id,
-            text=f"Баланс {access.get_balance()}\nСегодня у тебя следующие задачи:")
+            text=f"Баланс: {access.get_balance()}\nСегодня у тебя следующие задачи:")
         for result in cur:
             bot.send_message(
                 config.telegram_my_id,
