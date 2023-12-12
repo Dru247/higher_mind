@@ -48,7 +48,7 @@ def access_check(message, call_data):
                 WHERE date BETWEEN date('now', '-15 day') AND date('now', '-1 day')))
                 """)
             bad_hand = cur.fetchone()
-        if balance > 1 and not bad_hand:
+        if balance >= 1 and not bad_hand:
             with sq.connect(config.database) as con:
                 cur = con.cursor()
                 cur.execute("INSERT INTO events (event) VALUES(1)")
