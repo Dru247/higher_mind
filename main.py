@@ -1,4 +1,3 @@
-import access
 import config
 import datetime
 import funcs
@@ -11,6 +10,8 @@ import time
 
 from pytz import timezone
 from telebot import types
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 
 logging.basicConfig(
@@ -352,11 +353,13 @@ def list_tasks(message):
         logging.critical("func 'list_tasks' - error", exc_info=True)
 
 
-def list_tasks_view(message, call_data):
+def list_tasks_view(message1, call_data):
     try:
         project = call_data.split()[1]
         with sq.connect(config.database) as con:
             cur = con.cursor()
+            cur.execute(f"SELECT field_name FROM task_field_types WHERE id = {project}")
+            project_name = cur.fetchone()[0]
             cur.execute(f"""
                 SELECT tasks.id, tasks.task, task_frequency_types.name
                 FROM tasks
@@ -365,11 +368,30 @@ def list_tasks_view(message, call_data):
                 AND (tasks.id NOT IN (SELECT task_id FROM routine WHERE success = 1)
                 OR frequency_type != 5)
             """)
+            message = MIMEMultipart()
+            message["From"] = config.my_email_mailru
+            message["To"] = config.my_email_yandex
+            message["Subject"] = f'Список задач проекта "{project_name}"'
+            data = f"""
+                <!DOCTYPE html><html><body><table><caption>{project_name}</caption>
+                <thead><tr><th>ID</th><th>Период.</th><th>Задача</th></tr></thead>
+                <tbody>
+                """
             for row in cur.fetchall():
-                bot.send_message(
-                    chat_id=message.chat.id,
-                    text=f"{row[0]}/{row[2]}: {row[1]}")
-
+                data += f"<tr><td>{row[0]}</td><td>{row[2]}</td><td>{row[1]}</td></tr>"
+            data += "</tbody></table></body></html>"
+            part = MIMEText(data, _subtype="html")
+            message.attach(part)
+            funcs.send_email(
+                config.smtp_server_mailru,
+                config.smtp_port_mailru,
+                config.my_email_mailru,
+                config.password_my_email_mailru,
+                config.my_email_yandex,
+                message)
+            bot.send_message(
+                chat_id=message1.chat.id,
+                text=f"Письмо отправлено")
     except Exception:
         logging.critical("func 'list_tasks' - error", exc_info=True)
 
@@ -379,7 +401,7 @@ def tasks_tomorrow():
         date = datetime.date.today() + datetime.timedelta(days=1)
         bot.send_message(
             config.telegram_my_id,
-            text=f"Баланс: {access.get_balance()}")
+            text=f"Баланс: {funcs.get_balance()}")
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(f"""
@@ -439,7 +461,7 @@ def morning_business():
             """)
         bot.send_message(
             config.telegram_my_id,
-            text=f"Баланс: {access.get_balance()}\nСегодня у тебя следующие задачи:")
+            text=f"Баланс: {funcs.get_balance()}\nСегодня у тебя следующие задачи:")
         for result in cur:
             bot.send_message(
                 config.telegram_my_id,
@@ -572,6 +594,123 @@ def schedule_main():
         time.sleep(1)
 
 
+def access_check(message, call_data):
+    try:
+        balance = funcs.get_balance()
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute("""
+                SELECT EXISTS(
+                SELECT * FROM routine
+                WHERE task_id = 91
+                AND success = 0
+                AND date_id IN
+                (SELECT id FROM dates
+                WHERE date BETWEEN date('now', '-15 day') AND date('now', '-1 day')))
+                """)
+            bad_hand = cur.fetchone()
+        if balance >= 1 and not bad_hand:
+            with sq.connect(config.database) as con:
+                cur = con.cursor()
+                cur.execute("INSERT INTO events (event) VALUES(1)")
+            bot.send_message(
+                message.chat.id,
+                text=f"Допуск получен:\nбаланс: {balance}\n"
+                     f"3НЕ: {bad_hand[0]}"
+            )
+            funcs.socket_client(
+                config.socket_server,
+                config.socket_port,
+                config.coding,
+                call_data.split()[1])
+        else:
+            bot.send_message(
+                message.chat.id,
+                text=f"Допуск НЕ получен:\nбаланс: {balance}\n"
+                     f"3НЕ: {bad_hand[0]}"
+            )
+    except Exception:
+        logging.warning(msg="func access_check - error", exc_info=True)
+
+
+def search_add(message, call_data):
+    try:
+        data = call_data.split()
+        if data[1] == "people":
+            bot.send_message(
+                message.chat.id,
+                text="Введи данные в формате Nam;Add;Met;Pho"
+                )
+            bot.register_next_step_handler(
+                message,
+                lambda m: funcs.socket_client(
+                    config.socket_server,
+                    config.socket_port,
+                    config.coding,
+                    data_send=f"add_new: {m.text}"
+                )
+            )
+        elif data[1] == "event":
+            funcs.socket_client(
+                config.socket_server,
+                config.socket_port,
+                config.coding,
+                data_send="view_people_prof")
+            bot.send_message(
+                message.chat.id,
+                text="Введи данные в формате ID_Peo;Dat;Coun"
+                )
+            bot.register_next_step_handler(
+                message,
+                lambda m: funcs.socket_client(
+                    config.socket_server,
+                    config.socket_port,
+                    config.coding,
+                    data_send=f"add_event: {m.text}"
+                    )
+                )
+        elif data[1] == "peo_prof":
+            funcs.socket_client(
+                config.socket_server,
+                config.socket_port,
+                config.coding,
+                data_send="view_people_prof")
+            bot.send_message(
+                message.chat.id,
+                text="Введи данные в формате ID_Peo;Number"
+                )
+            bot.register_next_step_handler(
+                message,
+                lambda m: funcs.socket_client(
+                    config.socket_server,
+                    config.socket_port,
+                    config.coding,
+                    data_send=f"add_people_prof: {m.text}"
+                    )
+                )
+        elif data[1] == "grades":
+            funcs.socket_client(
+                config.socket_server,
+                config.socket_port,
+                config.coding,
+                data_send="view_people_prof")
+            bot.send_message(
+                message.chat.id,
+                text="Введи данные в формате ID_Peo;12char"
+                )
+            bot.register_next_step_handler(
+                message,
+                lambda m: funcs.socket_client(
+                    config.socket_server,
+                    config.socket_port,
+                    config.coding,
+                    data_send=f"add_grades: {m.text}"
+                    )
+                )
+    except Exception:
+        logging.critical("func 'search_add' - error", exc_info=True)
+
+
 @bot.message_handler(commands=['start'])
 def start_message(message):
     bot.send_message(message.chat.id, text="Привет! Напиши имя")
@@ -652,9 +791,9 @@ def callback_query(call):
     elif "routine_week" in call.data:
         add_routine_week(call.message, call.data)
     elif "search" in call.data:
-        access.access_check(call.message, call.data)
+        access_check(call.message, call.data)
     elif "emailer_add" in call.data:
-        access.search_add(call.message, call.data)
+        search_add(call.message, call.data)
 
 
 @bot.message_handler(content_types=['text'])

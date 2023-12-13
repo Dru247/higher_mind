@@ -3,7 +3,8 @@ import datetime
 import imaplib
 import logging
 import main
-# import smtplib
+import smtplib
+import socket
 import sqlite3 as sq
 import os
 import yadisk
@@ -11,16 +12,17 @@ import yadisk
 
 ya = yadisk.YaDisk(token=config.ya_disk_token)
 
-# def send_email(smtp_server, smtp_port, sender_email, sender_email_password, recipient_email, data):
-#     server = smtplib.SMTP(smtp_server, smtp_port)
-#     try:
-#         server.starttls()
-#         server.login(sender_email, sender_email_password)
-#         server.sendmail(sender_email, recipient_email, data.as_string())
-#     except Exception:
-#         logging.critical("func 'send email' - error", exc_info=True)
-#     finally:
-#         server.quit()
+
+def send_email(smtp_server, smtp_port, sender_email, sender_email_password, recipient_email, data):
+    server = smtplib.SMTP(smtp_server, smtp_port)
+    try:
+        server.starttls()
+        server.login(sender_email, sender_email_password)
+        server.sendmail(sender_email, recipient_email, data.as_string())
+    except Exception:
+        logging.critical("func 'send email' - error", exc_info=True)
+    finally:
+        server.quit()
 
 
 def preparation_emails():
@@ -89,3 +91,31 @@ def send_logs(message):
             text="Логи отправлены")
     except Exception:
         logging.warning("func send_logs - error", exc_info=True)
+
+
+def socket_client(server, port, coding, data_send):
+    sock = socket.socket()
+    sock.connect((server, port))
+    sock.send(data_send.encode(coding))
+    sock.close()
+
+
+def get_balance():
+    try:
+        day_routines = 8
+        week_days = 7
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute("SELECT count(event) FROM events")
+            count_events = int(cur.fetchone()[0])
+            cur.execute("SELECT count(success) FROM routine WHERE success = 1")
+            count_routine = int(cur.fetchone()[0])
+            cur.execute("SELECT count(date) FROM dates WHERE date < date('now')")
+            count_dates = int(cur.fetchone()[0])
+            routine_balance = (count_routine - count_dates * day_routines) / day_routines
+            event_balance = count_dates - count_events * week_days
+            balance = (event_balance + routine_balance) / week_days
+            logging.info(f"Balance {balance}")
+            return round(balance, 3)
+    except Exception:
+        logging.warning("func count_access - error", exc_info=True)
