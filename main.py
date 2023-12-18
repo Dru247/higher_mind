@@ -597,27 +597,25 @@ def schedule_main():
 def access_check(message, call_data):
     try:
         balance = funcs.get_balance()
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            cur.execute("""
-                SELECT EXISTS(
-                SELECT * FROM routine
-                WHERE task_id = 91
-                AND success = 0
-                AND date_id IN
-                (SELECT id FROM dates
-                WHERE date BETWEEN date('now', '-15 day') AND date('now', '-1 day')))
-                """)
-            bad_hand = cur.fetchone()
-        if balance >= 1 and not bad_hand:
+        # with sq.connect(config.database) as con:
+        #     cur = con.cursor()
+        #     cur.execute("""
+        #         SELECT EXISTS(
+        #         SELECT * FROM routine
+        #         WHERE task_id = 91
+        #         AND success = 0
+        #         AND date_id IN
+        #         (SELECT id FROM dates
+        #         WHERE date BETWEEN date('now', '-15 day') AND date('now', '-1 day')))
+        #         """)
+        #     bad_hand = cur.fetchone()
+        if balance >= 1:
             with sq.connect(config.database) as con:
                 cur = con.cursor()
                 cur.execute("INSERT INTO events (event) VALUES(1)")
             bot.send_message(
                 message.chat.id,
-                text=f"Допуск получен:\nбаланс: {balance}\n"
-                     f"3НЕ: {bad_hand[0]}"
-            )
+                text=f"Допуск получен:\nбаланс: {balance}")
             funcs.socket_client(
                 config.socket_server,
                 config.socket_port,
@@ -626,9 +624,7 @@ def access_check(message, call_data):
         else:
             bot.send_message(
                 message.chat.id,
-                text=f"Допуск НЕ получен:\nбаланс: {balance}\n"
-                     f"3НЕ: {bad_hand[0]}"
-            )
+                text=f"Допуск НЕ получен:\nбаланс: {balance}")
     except Exception:
         logging.warning(msg="func access_check - error", exc_info=True)
 
