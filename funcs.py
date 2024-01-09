@@ -113,7 +113,7 @@ def get_balance():
             cur.execute("SELECT count(date) FROM dates WHERE date < date('now')")
             count_dates = int(cur.fetchone()[0])
             cur.execute("SELECT count() FROM routine WHERE task_id = 91 AND success = 0")
-            bad_hand = cur.fetchone()[0] * 0.01
+            bad_hand = cur.fetchone()[0] * 0.1
             routine_balance = (count_routine - count_dates * day_routines) / day_routines
             event_balance = count_dates - count_events * week_days
             balance = (event_balance + routine_balance) / week_days - bad_hand
