@@ -613,20 +613,28 @@ def access_check(message, call_data):
             with sq.connect(config.database) as con:
                 cur = con.cursor()
                 cur.execute("INSERT INTO events (event) VALUES(1)")
-            bot.send_message(
-                message.chat.id,
-                text=f"Допуск получен:\nбаланс: {balance}")
-            funcs.socket_client(
-                config.socket_server,
-                config.socket_port,
-                config.coding,
-                call_data.split()[1])
+            msg = bot.send_message(
+                    message.chat.id,
+                    text=f"Допуск получен:\nбаланс: {balance}\nСколько жмёшь?")
+            bot.register_next_step_handler(message=msg, callback=open_door, data=call_data)
         else:
             bot.send_message(
                 message.chat.id,
                 text=f"Допуск НЕ получен:\nбаланс: {balance}")
     except Exception:
         logging.warning(msg="func access_check - error", exc_info=True)
+
+
+def open_door(message, data):
+    try:
+        funcs.socket_client(
+            config.socket_server,
+            config.socket_port,
+            config.coding,
+            data_send=f"{data.split()[1]};{message.text}"
+        )
+    except Exception:
+        logging.critical("func open_door - error", exc_info=True)
 
 
 def search_add(message, call_data):
