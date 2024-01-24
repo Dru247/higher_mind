@@ -663,7 +663,7 @@ def search_add(message, call_data):
                 data_send="view_people_prof")
             bot.send_message(
                 message.chat.id,
-                text="Введи данные в формате ID_Peo;Dat;Coun"
+                text="Введи данные в формате (6) ID_Peo;Dat;Coun;Temp;Lift;Dist(0/1)"
                 )
             bot.register_next_step_handler(
                 message,
