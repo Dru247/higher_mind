@@ -7,6 +7,7 @@ import smtplib
 import socket
 import sqlite3 as sq
 import os
+import requests
 import yadisk
 
 
@@ -121,3 +122,14 @@ def get_balance():
             return round(balance, 3)
     except Exception:
         logging.warning("func count_access - error", exc_info=True)
+
+
+def get_temperature():
+    try:
+        city = "Москва"
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&units=metric&lang=ru&appid=79d1ca96933b0328e1c7e3e7a26cb347"
+        weather_data = requests.get(url).json()
+        temperature = weather_data["main"]["temp_max"]
+        return temperature
+    except Exception:
+        logging.warning("func get_temperature - error", exc_info=True)

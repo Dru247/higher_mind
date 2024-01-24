@@ -461,7 +461,7 @@ def morning_business():
             """)
         bot.send_message(
             config.telegram_my_id,
-            text=f"Баланс: {funcs.get_balance()}\nСегодня у тебя следующие задачи:")
+            text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}\nСегодня у тебя следующие задачи:")
         for result in cur:
             bot.send_message(
                 config.telegram_my_id,
@@ -627,11 +627,12 @@ def access_check(message, call_data):
 
 def open_door(message, data):
     try:
+        temp = funcs.get_temperature()
         funcs.socket_client(
             config.socket_server,
             config.socket_port,
             config.coding,
-            data_send=f"{data.split()[1]};{message.text}"
+            data_send=f"{data.split()[1]};{temp};{message.text}"
         )
     except Exception:
         logging.critical("func open_door - error", exc_info=True)
@@ -739,10 +740,10 @@ def task_completed(message):
     keyboard = types.InlineKeyboardMarkup()
     key_1 = types.InlineKeyboardButton(
         text="Start search",
-        callback_data='search search')
+        callback_data='search search;0')
     key_2 = types.InlineKeyboardButton(
         text="Start search all",
-        callback_data='search search_all')
+        callback_data='search search;1')
     key_3 = types.InlineKeyboardButton(
         text="Email",
         callback_data='search email')
