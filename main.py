@@ -1,3 +1,5 @@
+import random
+
 import config
 import datetime
 import funcs
@@ -447,6 +449,25 @@ def add_routine_tomorrow(message, call_data):
         logging.error(msg="func add_routine_tomorrow - error", exc_info=True)
 
 
+def get_event():
+    try:
+        week_day = datetime.datetime.today().weekday() in [0, 1, 2, 3, 4]
+        balance = funcs.get_balance()
+        rand = random.choice([0, 1])
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute("SELECT datetime FROM events ORDER BY id DESC LIMIT 1")
+            last_event = datetime.datetime.strptime(cur.fetchone()[0], "%Y-%m-%d %H:%M:%S")
+            time_delta = datetime.datetime.now() - last_event
+            replay = time_delta > datetime.timedelta(days=1, hours=5)
+        if balance and replay and week_day and rand:
+            return "Today"
+        else:
+            return "Wait"
+    except Exception:
+        logging.error(msg="func get_event - error", exc_info=True)
+
+
 def morning_business():
     funcs.preparation_emails()
     funcs.info_check_email()
@@ -461,7 +482,7 @@ def morning_business():
             """)
         bot.send_message(
             config.telegram_my_id,
-            text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}\nСегодня у тебя следующие задачи:")
+            text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}\n{get_event()}\nСегодня у тебя следующие задачи:")
         for result in cur:
             bot.send_message(
                 config.telegram_my_id,
@@ -581,11 +602,11 @@ def planning_day():
 
 def schedule_main():
     schedule.every().day.at(
-        "07:00",
+        "05:30",
         timezone(config.timezone_my)
         ).do(morning_business)
     schedule.every().day.at(
-        "21:30",
+        "21:00",
         timezone(config.timezone_my)
         ).do(planning_day)
 
@@ -597,18 +618,6 @@ def schedule_main():
 def access_check(message, call_data):
     try:
         balance = funcs.get_balance()
-        # with sq.connect(config.database) as con:
-        #     cur = con.cursor()
-        #     cur.execute("""
-        #         SELECT EXISTS(
-        #         SELECT * FROM routine
-        #         WHERE task_id = 91
-        #         AND success = 0
-        #         AND date_id IN
-        #         (SELECT id FROM dates
-        #         WHERE date BETWEEN date('now', '-15 day') AND date('now', '-1 day')))
-        #         """)
-        #     bad_hand = cur.fetchone()
         if balance >= 1:
             with sq.connect(config.database) as con:
                 cur = con.cursor()
@@ -663,7 +672,7 @@ def search_add(message, call_data):
                 data_send="view_people_prof")
             bot.send_message(
                 message.chat.id,
-                text="Введи данные в формате (6) ID_Peo;Dat;Coun;Temp;Dist(0/1)"
+                text="Введи данные в формате (6) ID_Peo;Dat;Count;Temp;Dist(0/1)"
                 )
             bot.register_next_step_handler(
                 message,
