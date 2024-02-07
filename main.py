@@ -830,8 +830,14 @@ def task_completed(message):
     key_7 = types.InlineKeyboardButton(
         text="Add grades",
         callback_data='emailer_add grades')
+    key_8 = types.InlineKeyboardButton(
+        text="Prof later",
+        callback_data='emailer_add prof_later')
+    key_9 = types.InlineKeyboardButton(
+        text="Prof off",
+        callback_data='emailer_add prof_off')
 
-    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7)
+    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7, key_8, key_9)
     bot.send_message(
         message.from_user.id,
         text="What we will do?",
