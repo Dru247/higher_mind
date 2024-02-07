@@ -81,7 +81,7 @@ def routine_check():
             else:
                 logging.info(f"func routine_daily_check_2: not exist daily routine ({results})")
                 bot.send_message(config.telegram_my_id, text=f"Сегодня задач не было")
-    except:
+    except Exception:
         logging.critical(msg="func routine_daily_check_2 - error", exc_info=True)
         bot.send_message(chat_id=config.telegram_my_id, text="Некорректно")
 
@@ -119,29 +119,35 @@ def set_user(message):
 
 # tasks
 def choice_field_type(message):
-    inline_keys = []
-    with sq.connect(config.database) as con:
-        cur = con.cursor()
-        cur.execute("SELECT id, field_name FROM task_field_types")
-        for record in cur:
-            inline_keys.append(
-                types.InlineKeyboardButton(
-                    text=record[1],
-                    callback_data=f"task_select_field {record[0]}"))
-    inline_keys.append(types.InlineKeyboardButton(
-                            text='Новый проект',
-                            callback_data='new_type_field_task'))
-    keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(*inline_keys)
-    bot.send_message(
-        message.from_user.id,
-        text="Выбери проект",
-        reply_markup=keyboard)
+    try:
+        inline_keys = []
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute("SELECT id, field_name FROM task_field_types")
+            for record in cur:
+                inline_keys.append(
+                    types.InlineKeyboardButton(
+                        text=record[1],
+                        callback_data=f"task_select_field {record[0]}"))
+        inline_keys.append(types.InlineKeyboardButton(
+                                text='Новый проект',
+                                callback_data='new_type_field_task'))
+        keyboard = types.InlineKeyboardMarkup()
+        keyboard.add(*inline_keys)
+        bot.send_message(
+            message.from_user.id,
+            text="Выбери проект",
+            reply_markup=keyboard)
+    except Exception:
+        logging.critical("func choice_field_type - error", exc_info=True)
 
 
 def set_type_field_task(message):
-    bot.send_message(message.chat.id, text="Введи новый тип задач")
-    bot.register_next_step_handler(message, add_type_field_task)
+    try:
+        bot.send_message(message.chat.id, text="Введи новый тип задач")
+        bot.register_next_step_handler(message, add_type_field_task)
+    except Exception:
+        logging.critical("func set_user - error", exc_info=True)
 
 
 def add_type_field_task(message):
@@ -180,8 +186,11 @@ def set_task(message, call_data):
 
 
 def add_task(message, data):
-    bot.send_message(message.chat.id, "Введи текст задачи")
-    bot.register_next_step_handler(message, lambda m: add_task_2(m, data))
+    try:
+        bot.send_message(message.chat.id, "Введи текст задачи")
+        bot.register_next_step_handler(message, lambda m: add_task_2(m, data))
+    except Exception:
+        logging.critical("func add_task - error", exc_info=True)
 
 
 def add_task_2(message, data):
@@ -207,8 +216,11 @@ def add_task_2(message, data):
 
 
 def change_task_set_number(message):
-    msg = bot.send_message(chat_id=message.chat.id, text="Введи № задачи")
-    bot.register_next_step_handler(message=msg, callback=change_task_set_field)
+    try:
+        msg = bot.send_message(chat_id=message.chat.id, text="Введи № задачи")
+        bot.register_next_step_handler(message=msg, callback=change_task_set_field)
+    except Exception:
+        logging.critical(msg="func change_task_set_number - error", exc_info=True)
 
 
 def change_task_set_field(message):
@@ -469,24 +481,27 @@ def get_event():
 
 
 def morning_business():
-    funcs.preparation_emails()
-    funcs.info_check_email()
-    with sq.connect(config.database) as con:
-        cur = con.cursor()
-        cur.execute(
-            """SELECT routine.id, tasks.task, tasks.id
-            FROM routine
-            JOIN tasks ON routine.task_id = tasks.id
-            WHERE
-            date_id = (SELECT id FROM dates WHERE date = date('now'))
-            """)
-        bot.send_message(
-            config.telegram_my_id,
-            text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}\n{get_event()}\nСегодня у тебя следующие задачи:")
-        for result in cur:
+    try:
+        funcs.preparation_emails()
+        funcs.info_check_email()
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(
+                """SELECT routine.id, tasks.task, tasks.id
+                FROM routine
+                JOIN tasks ON routine.task_id = tasks.id
+                WHERE
+                date_id = (SELECT id FROM dates WHERE date = date('now'))
+                """)
             bot.send_message(
                 config.telegram_my_id,
-                text=f"{result[2]}: {result[1]}")
+                text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}\n{get_event()}\nСегодня у тебя следующие задачи:")
+            for result in cur:
+                bot.send_message(
+                    config.telegram_my_id,
+                    text=f"{result[2]}: {result[1]}")
+    except Exception:
+        logging.error(msg="func morning_business - error", exc_info=True)
 
 
 def planning_week():
@@ -562,57 +577,66 @@ def add_routine_week(message, call_data):
 
 
 def add_date():
-    week_day = datetime.datetime.today().weekday()
-    with sq.connect(config.database) as con:
-        cur = con.cursor()
-        cur.execute("""INSERT OR IGNORE INTO dates (date)
-            VALUES (date('now','+1 day'))""")
-        if week_day not in (4, 5):
-            cur.execute("SELECT id FROM tasks WHERE frequency_type IN (1, 6)")
-        else:
-            cur.execute("SELECT id FROM tasks WHERE frequency_type = 1")
-        for result in cur.fetchall():
-            cur.execute(f"""INSERT INTO routine (date_id, task_id)
-                VALUES (
-                (SELECT id FROM dates WHERE date = date('now','+1 day')),
-                {result[0]}
-                )
-                """)
-    if week_day == 6:
-        planning_week()
-        funcs.save_logs()
+    try:
+        week_day = datetime.datetime.today().weekday()
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(
-                """INSERT INTO tasks(id_user, task_field_type, frequency_type, task)
-                VALUES (1, 1, 5, 'Прочитать логи')""")
-            cur.execute(
-                f"""INSERT INTO routine (date_id, task_id)
-                VALUES (
+            cur.execute("""INSERT OR IGNORE INTO dates (date)
+                VALUES (date('now','+1 day'))""")
+            if week_day not in (4, 5):
+                cur.execute("SELECT id FROM tasks WHERE frequency_type IN (1, 6)")
+            else:
+                cur.execute("SELECT id FROM tasks WHERE frequency_type = 1")
+            for result in cur.fetchall():
+                cur.execute(f"""INSERT INTO routine (date_id, task_id)
+                    VALUES (
                     (SELECT id FROM dates WHERE date = date('now','+1 day')),
-                    {cur.lastrowid})
-                """)
+                    {result[0]}
+                    )
+                    """)
+        if week_day == 6:
+            planning_week()
+            funcs.save_logs()
+            with sq.connect(config.database) as con:
+                cur = con.cursor()
+                cur.execute(
+                    """INSERT INTO tasks(id_user, task_field_type, frequency_type, task)
+                    VALUES (1, 1, 5, 'Прочитать логи')""")
+                cur.execute(
+                    f"""INSERT INTO routine (date_id, task_id)
+                    VALUES (
+                        (SELECT id FROM dates WHERE date = date('now','+1 day')),
+                        {cur.lastrowid})
+                    """)
+    except Exception:
+        logging.error("func add_date - error", exc_info=True)
 
 
 def planning_day():
-    add_date()
-    routine_check()
-    tasks_tomorrow()
+    try:
+        add_date()
+        routine_check()
+        tasks_tomorrow()
+    except Exception:
+        logging.error("func planning_day - error", exc_info=True)
 
 
 def schedule_main():
-    schedule.every().day.at(
-        "05:30",
-        timezone(config.timezone_my)
-        ).do(morning_business)
-    schedule.every().day.at(
-        "21:00",
-        timezone(config.timezone_my)
-        ).do(planning_day)
+    try:
+        schedule.every().day.at(
+            "05:30",
+            timezone(config.timezone_my)
+            ).do(morning_business)
+        schedule.every().day.at(
+            "21:00",
+            timezone(config.timezone_my)
+            ).do(planning_day)
 
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+        while True:
+            schedule.run_pending()
+            time.sleep(1)
+    except Exception:
+        logging.error("func schedule_main - error", exc_info=True)
 
 
 def access_check(message, call_data):
@@ -672,7 +696,7 @@ def search_add(message, call_data):
                 data_send="view_people_prof")
             bot.send_message(
                 message.chat.id,
-                text="Введи данные в формате (6) ID_Peo;Dat;Count;Temp;Dist(0/1)"
+                text="Введи данные в формате (5) ID_Peo;Dat;Count;Temp;Dist(0/1)"
                 )
             bot.register_next_step_handler(
                 message,
@@ -719,6 +743,44 @@ def search_add(message, call_data):
                     config.socket_port,
                     config.coding,
                     data_send=f"add_grades: {m.text}"
+                    )
+                )
+        elif data[1] == "prof_off":
+            funcs.socket_client(
+                config.socket_server,
+                config.socket_port,
+                config.coding,
+                data_send="view_people_prof")
+            bot.send_message(
+                message.chat.id,
+                text="Введи данные в формате ID_Peo;Number"
+                )
+            bot.register_next_step_handler(
+                message,
+                lambda m: funcs.socket_client(
+                    config.socket_server,
+                    config.socket_port,
+                    config.coding,
+                    data_send=f"prof_off: {m.text}"
+                    )
+                )
+        elif data[1] == "prof_later":
+            funcs.socket_client(
+                config.socket_server,
+                config.socket_port,
+                config.coding,
+                data_send="view_people_prof")
+            bot.send_message(
+                message.chat.id,
+                text="Введи данные в формате ID_Peo;Number"
+                )
+            bot.register_next_step_handler(
+                message,
+                lambda m: funcs.socket_client(
+                    config.socket_server,
+                    config.socket_port,
+                    config.coding,
+                    data_send=f"prof_later: {m.text}"
                     )
                 )
     except Exception:
