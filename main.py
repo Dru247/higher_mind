@@ -753,7 +753,7 @@ def search_add(message, call_data):
                 data_send="view_people_prof")
             bot.send_message(
                 message.chat.id,
-                text="Введи данные в формате ID_Peo;Number"
+                text="Введи number_prof"
                 )
             bot.register_next_step_handler(
                 message,
@@ -772,7 +772,7 @@ def search_add(message, call_data):
                 data_send="view_people_prof")
             bot.send_message(
                 message.chat.id,
-                text="Введи данные в формате ID_Peo;Number"
+                text="Введи number_prof"
                 )
             bot.register_next_step_handler(
                 message,
