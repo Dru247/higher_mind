@@ -661,128 +661,93 @@ def access_check(message, call_data):
 def open_door(message, data):
     try:
         temp = funcs.get_temperature()
-        funcs.socket_client(
-            config.socket_server,
-            config.socket_port,
-            config.coding,
-            data_send=f"{data.split()[1]};{temp};{message.text}"
-        )
+        funcs.socket_client(data_send=f"{data.split()[1]};{temp};{message.text}")
     except Exception:
         logging.critical("func open_door - error", exc_info=True)
 
 
 def search_add(message, call_data):
     try:
-        data = call_data.split()
-        if data[1] == "people":
-            bot.send_message(
-                message.chat.id,
-                text="Введи данные в формате Nam;Add;Met;Pho"
-                )
-            bot.register_next_step_handler(
-                message,
-                lambda m: funcs.socket_client(
-                    config.socket_server,
-                    config.socket_port,
-                    config.coding,
-                    data_send=f"add_new: {m.text}"
-                )
+        data = call_data.split()[1]
+        if data == "people":
+            def check_people(message):
+                data_msg = message.text.strip()
+                data_check = data_msg.split(";")
+                if len(data_check) == 4 and len(data_check[3]) == 12:
+                    funcs.socket_client(data_send=f"{data}: {data_msg}")
+                else:
+                    bot.send_message(chat_id=message.chat.id, text="Error")
+
+            funcs.socket_client(data_send="view_people_prof")
+            msg = bot.send_message(
+                chat_id=message.chat.id,
+                text="Введи данные в формате (4) Nam;Add;Met;Pho"
             )
-        elif data[1] == "event":
-            funcs.socket_client(
-                config.socket_server,
-                config.socket_port,
-                config.coding,
-                data_send="view_people_prof")
-            bot.send_message(
-                message.chat.id,
+            bot.register_next_step_handler(message=msg, callback=check_people)
+
+        elif data == "event":
+            def check_event(message):
+                data_msg = message.text.strip()
+                if len(data_msg.split(";")) == 5:
+                    funcs.socket_client(data_send=f"{data}: {data_msg}")
+                else:
+                    bot.send_message(chat_id=message.chat.id, text="Error")
+
+            funcs.socket_client(data_send="view_people_prof")
+            msg = bot.send_message(
+                chat_id=message.chat.id,
                 text="Введи данные в формате (5) ID_Peo;Dat;Count;Temp;Dist(0/1)"
-                )
-            bot.register_next_step_handler(
-                message,
-                lambda m: funcs.socket_client(
-                    config.socket_server,
-                    config.socket_port,
-                    config.coding,
-                    data_send=f"add_event: {m.text}"
-                    )
-                )
-        elif data[1] == "peo_prof":
-            funcs.socket_client(
-                config.socket_server,
-                config.socket_port,
-                config.coding,
-                data_send="view_people_prof")
-            bot.send_message(
-                message.chat.id,
-                text="Введи данные в формате ID_Peo;Number"
-                )
-            bot.register_next_step_handler(
-                message,
-                lambda m: funcs.socket_client(
-                    config.socket_server,
-                    config.socket_port,
-                    config.coding,
-                    data_send=f"add_people_prof: {m.text}"
-                    )
-                )
-        elif data[1] == "grades":
-            funcs.socket_client(
-                config.socket_server,
-                config.socket_port,
-                config.coding,
-                data_send="view_people_prof")
-            bot.send_message(
-                message.chat.id,
-                text="Введи данные в формате ID_Peo;12char"
-                )
-            bot.register_next_step_handler(
-                message,
-                lambda m: funcs.socket_client(
-                    config.socket_server,
-                    config.socket_port,
-                    config.coding,
-                    data_send=f"add_grades: {m.text}"
-                    )
-                )
-        elif data[1] == "prof_off":
-            funcs.socket_client(
-                config.socket_server,
-                config.socket_port,
-                config.coding,
-                data_send="view_people_prof")
-            bot.send_message(
-                message.chat.id,
-                text="Введи number_prof"
-                )
-            bot.register_next_step_handler(
-                message,
-                lambda m: funcs.socket_client(
-                    config.socket_server,
-                    config.socket_port,
-                    config.coding,
-                    data_send=f"prof_off: {m.text}"
-                    )
-                )
-        elif data[1] == "prof_later":
-            funcs.socket_client(
-                config.socket_server,
-                config.socket_port,
-                config.coding,
-                data_send="view_people_prof")
-            bot.send_message(
-                message.chat.id,
-                text="Введи number_prof"
-                )
-            bot.register_next_step_handler(
-                message,
-                lambda m: funcs.socket_client(
-                    config.socket_server,
-                    config.socket_port,
-                    config.coding,
-                    data_send=f"prof_later: {m.text}"
-                    )
-                )
+            )
+            bot.register_next_step_handler(message=msg, callback=check_event)
+
+        elif data == "peo_prof":
+            def check_peo_prof(message):
+                data_msg = message.text.strip()
+                data_check = data_msg.split(";")
+                if len(data_check) == 2 and len(data_check[1]) == 6:
+                    funcs.socket_client(data_send=f"{data}: {data_msg}")
+                else:
+                    bot.send_message(chat_id=message.chat.id, text="Error")
+
+            funcs.socket_client(data_send="view_people_prof")
+            msg = bot.send_message(chat_id=message.chat.id, text="Введи данные в формате ID_Peo;Number")
+            bot.register_next_step_handler(message=msg, callback=check_peo_prof)
+
+        elif data == "grades":
+            def check_grades(message):
+                data_msg = message.text.strip()
+                data_check = data_msg.split(";")
+                if len(data_check) == 2 and len(data_check[1]) == 12:
+                    funcs.socket_client(data_send=f"{data}: {data_msg}")
+                else:
+                    bot.send_message(chat_id=message.chat.id, text="Error")
+
+            funcs.socket_client(data_send="view_people_prof")
+            msg = bot.send_message(chat_id=message.chat.id, text="Введи данные в формате ID_Peo;12char")
+            bot.register_next_step_handler(message=msg, callback=check_grades)
+
+        elif data == "prof_off":
+            def check_prof_off(message):
+                data_msg = message.text.strip()
+                if len(data_msg) == 6 and data_msg.isdigit():
+                    funcs.socket_client(data_send=f"{data}: {data_msg}")
+                else:
+                    bot.send_message(chat_id=message.chat.id, text="Error")
+
+            msg = bot.send_message(chat_id=message.chat.id, text="Введи number_prof")
+            bot.register_next_step_handler(message=msg, callback=check_prof_off)
+
+        elif data == "prof_later":
+            def check_prof_later(message):
+                data_msg = message.text.strip()
+                if len(data_msg) == 6 and data_msg.isdigit():
+                    funcs.socket_client(data_send=f"{data}: {data_msg}")
+                else:
+                    bot.send_message(chat_id=message.chat.id, text="Error")
+
+            msg = bot.send_message(chat_id=message.chat.id, text="Введи number_prof")
+            bot.register_next_step_handler(message=msg, callback=check_prof_later)
+
     except Exception:
         logging.critical("func 'search_add' - error", exc_info=True)
 

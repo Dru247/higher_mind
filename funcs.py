@@ -94,7 +94,7 @@ def send_logs(message):
         logging.warning("func send_logs - error", exc_info=True)
 
 
-def socket_client(server, port, coding, data_send):
+def socket_client(data_send, server=config.socket_server, port=config.socket_port, coding=config.coding):
     sock = socket.socket()
     sock.connect((server, port))
     sock.send(data_send.encode(coding))
