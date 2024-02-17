@@ -726,26 +726,16 @@ def search_add(message, call_data):
             msg = bot.send_message(chat_id=message.chat.id, text="Введи данные в формате ID_Peo;12char")
             bot.register_next_step_handler(message=msg, callback=check_grades)
 
-        elif data == "prof_off":
-            def check_prof_off(message):
-                data_msg = message.text.strip()
-                if len(data_msg) == 6 and data_msg.isdigit():
-                    funcs.socket_client(data_send=f"{data}: {data_msg}")
-                else:
-                    bot.send_message(chat_id=message.chat.id, text="Error")
-
-            msg = bot.send_message(chat_id=message.chat.id, text="Введи number_prof")
-            bot.register_next_step_handler(message=msg, callback=check_prof_off)
-
         elif data == "prof_later":
             def check_prof_later(message):
                 data_msg = message.text.strip()
-                if len(data_msg) == 6 and data_msg.isdigit():
+                prof, months = data_msg.split(";")
+                if len(prof) == 6 and months.isdigit() and prof.isdigit():
                     funcs.socket_client(data_send=f"{data}: {data_msg}")
                 else:
                     bot.send_message(chat_id=message.chat.id, text="Error")
 
-            msg = bot.send_message(chat_id=message.chat.id, text="Введи number_prof")
+            msg = bot.send_message(chat_id=message.chat.id, text="Введи number_prof;months")
             bot.register_next_step_handler(message=msg, callback=check_prof_later)
 
     except Exception:
@@ -798,11 +788,8 @@ def task_completed(message):
     key_8 = types.InlineKeyboardButton(
         text="Prof later",
         callback_data='emailer_add prof_later')
-    key_9 = types.InlineKeyboardButton(
-        text="Prof off",
-        callback_data='emailer_add prof_off')
 
-    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7, key_8, key_9)
+    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7, key_8)
     bot.send_message(
         message.from_user.id,
         text="What we will do?",
