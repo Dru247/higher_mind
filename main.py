@@ -486,13 +486,13 @@ def morning_business():
         funcs.info_check_email()
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(
-                """SELECT routine.id, tasks.task, tasks.id
+            cur.execute("""
+                SELECT routine.id, tasks.task, tasks.id
                 FROM routine
                 JOIN tasks ON routine.task_id = tasks.id
                 WHERE
                 date_id = (SELECT id FROM dates WHERE date = date('now'))
-                """)
+            """)
             bot.send_message(
                 config.telegram_my_id,
                 text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}\n{get_event()}\nСегодня у тебя следующие задачи:")
@@ -500,8 +500,20 @@ def morning_business():
                 bot.send_message(
                     config.telegram_my_id,
                     text=f"{result[2]}: {result[1]}")
+            msg = bot.send_message(chat_id=message.chat.id, text="Сколько весишь?")
+            bot.register_next_step_handler(message=msg, callback=add_my_weight)
     except Exception:
         logging.error(msg="func morning_business - error", exc_info=True)
+
+
+def add_my_weight(message):
+    try:
+        weight = message.text.strip()
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute("INSERT INTO my_weight (weight) VALUES (?)", (weight,))
+    except Exception:
+        logging.error(msg="func add_my_weight - error", exc_info=True)
 
 
 def planning_week():
@@ -646,24 +658,22 @@ def access_check(message, call_data):
             with sq.connect(config.database) as con:
                 cur = con.cursor()
                 cur.execute("INSERT INTO events (event) VALUES(1)")
-            msg = bot.send_message(
-                    message.chat.id,
-                    text=f"Допуск получен:\nбаланс: {balance}\nСколько жмёшь?")
-            bot.register_next_step_handler(message=msg, callback=open_door, data=call_data)
+                cur.execute("SELECT weight FROM my_weight ORDER BY id DESC LIMIT 1")
+                my_weight = cur.fetchone()[0]
+                cur.execute("SELECT weight FROM lift_weights ORDER BY id DESC LIMIT 1")
+                lift_weight = cur.fetchone()[0]
+                all_weight = ((90 - float(my_weight)) * 5) + float(lift_weight)
+                temp = funcs.get_temperature()
+                funcs.socket_client(data_send=f"{call_data.split()[1]};{temp};{int(all_weight)}")
+            bot.send_message(
+                message.chat.id,
+                text=f"Допуск получен:\nбаланс: {balance}\nWeight: {round(all_weight, 2)}")
         else:
             bot.send_message(
                 message.chat.id,
                 text=f"Допуск НЕ получен:\nбаланс: {balance}")
     except Exception:
         logging.warning(msg="func access_check - error", exc_info=True)
-
-
-def open_door(message, data):
-    try:
-        temp = funcs.get_temperature()
-        funcs.socket_client(data_send=f"{data.split()[1]};{temp};{message.text}")
-    except Exception:
-        logging.critical("func open_door - error", exc_info=True)
 
 
 def search_add(message, call_data):
