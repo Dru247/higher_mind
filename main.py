@@ -107,7 +107,10 @@ def set_user(message):
     try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"INSERT INTO users (first_name, telegram_id) VALUES ('{message.text}', {message.chat.id})")
+            cur.execute(
+                "INSERT INTO users (first_name, telegram_id) VALUES (?, ?)",
+                (message.text, message.chat.id)
+            )
             bot.send_message(
                 chat_id=message.chat.id,
                 text="Приятно познакомиться",
@@ -154,8 +157,15 @@ def add_type_field_task(message):
     try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"INSERT INTO task_field_types(field_name) VALUES('{message.text}')")
-            bot.send_message(message.chat.id, text=f"Новый тип задач ({message.text}) добавлен", reply_markup  = keyboard_main)
+            cur.execute(
+                "INSERT INTO task_field_types (field_name) VALUES (?)",
+                (message.text,)
+            )
+            bot.send_message(
+                message.chat.id,
+                text=f"Новый тип задач ({message.text}) добавлен",
+                reply_markup = keyboard_main
+            )
         
     except Exception:
         logging.critical("func add_routine - error", exc_info=True)
@@ -198,9 +208,10 @@ def add_task_2(message, data):
     try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"""INSERT INTO tasks (id_user, task_field_type, frequency_type, task)
-                        VALUES ((SELECT id FROM users WHERE telegram_id = {message.chat.id}), {task_set[0]}, {task_set[1]}, '{message.text}')
-                        """)
+            cur.execute(f"""
+                INSERT INTO tasks (id_user, task_field_type, frequency_type, task)
+                VALUES ((SELECT id FROM users WHERE telegram_id = {message.chat.id}), {task_set[0]}, {task_set[1]}, '{message.text}')
+            """)
             bot.send_message(message.chat.id, f"Задача №{cur.lastrowid}: создана")
             if message.text[0] == "!":
                 cur.execute(f"""
@@ -490,18 +501,16 @@ def morning_business():
                 SELECT routine.id, tasks.task, tasks.id
                 FROM routine
                 JOIN tasks ON routine.task_id = tasks.id
-                WHERE
-                date_id = (SELECT id FROM dates WHERE date = date('now'))
+                WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
             """)
-            bot.send_message(
-                config.telegram_my_id,
-                text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}\n{get_event()}\nСегодня у тебя следующие задачи:")
-            for result in cur:
-                bot.send_message(
-                    config.telegram_my_id,
-                    text=f"{result[2]}: {result[1]}")
-            msg = bot.send_message(chat_id=config.telegram_my_id, text="Сколько весишь?")
-            bot.register_next_step_handler(message=msg, callback=add_my_weight)
+            result = cur.fetchall()
+        bot.send_message(
+            config.telegram_my_id,
+            text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}\n{get_event()}\nСегодня у тебя следующие задачи:")
+        for line in result:
+            bot.send_message(config.telegram_my_id, text=f"{line[2]}: {line[1]}")
+        msg = bot.send_message(chat_id=config.telegram_my_id, text="Сколько весишь?")
+        bot.register_next_step_handler(message=msg, callback=add_my_weight)
     except Exception:
         logging.error(msg="func morning_business - error", exc_info=True)
 
