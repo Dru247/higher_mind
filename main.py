@@ -500,7 +500,7 @@ def morning_business():
                 bot.send_message(
                     config.telegram_my_id,
                     text=f"{result[2]}: {result[1]}")
-            msg = bot.send_message(chat_id=message.chat.id, text="Сколько весишь?")
+            msg = bot.send_message(chat_id=config.telegram_my_id, text="Сколько весишь?")
             bot.register_next_step_handler(message=msg, callback=add_my_weight)
     except Exception:
         logging.error(msg="func morning_business - error", exc_info=True)
