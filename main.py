@@ -521,6 +521,7 @@ def add_my_weight(message):
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("INSERT INTO my_weight (weight) VALUES (?)", (weight,))
+        bot.send_message(chat_id=config.telegram_my_id, text=f"goal:{funcs.access_weight()}")
     except Exception:
         logging.error(msg="func add_my_weight - error", exc_info=True)
 
@@ -667,12 +668,8 @@ def access_check(message, call_data):
             with sq.connect(config.database) as con:
                 cur = con.cursor()
                 cur.execute("INSERT INTO events (event) VALUES(1)")
-                cur.execute("SELECT weight FROM my_weight ORDER BY id DESC LIMIT 1")
-                my_weight = cur.fetchone()[0]
-                cur.execute("SELECT weight FROM lift_weights ORDER BY id DESC LIMIT 1")
-                lift_weight = cur.fetchone()[0]
-                all_weight = ((90 - float(my_weight)) * 5) + float(lift_weight)
                 temp = funcs.get_temperature()
+                all_weight = funcs.access_weight()
                 funcs.socket_client(data_send=f"{call_data.split()[1]};{temp};{int(all_weight)}")
             bot.send_message(
                 message.chat.id,
@@ -790,25 +787,28 @@ def task_completed(message):
         text="Start search all",
         callback_data='search search;1')
     key_3 = types.InlineKeyboardButton(
+        text="Start search_m",
+        callback_data='search mass')
+    key_4 = types.InlineKeyboardButton(
         text="Email",
         callback_data='search email')
-    key_4 = types.InlineKeyboardButton(
+    key_5 = types.InlineKeyboardButton(
         text="Add people",
         callback_data='emailer_add people')
-    key_5 = types.InlineKeyboardButton(
+    key_6 = types.InlineKeyboardButton(
         text="Add event",
         callback_data='emailer_add event')
-    key_6 = types.InlineKeyboardButton(
+    key_7 = types.InlineKeyboardButton(
         text="Add people_prof",
         callback_data='emailer_add peo_prof')
-    key_7 = types.InlineKeyboardButton(
+    key_8 = types.InlineKeyboardButton(
         text="Add grades",
         callback_data='emailer_add grades')
-    key_8 = types.InlineKeyboardButton(
+    key_9 = types.InlineKeyboardButton(
         text="Prof later",
         callback_data='emailer_add prof_later')
 
-    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7, key_8)
+    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7, key_8, key_9)
     bot.send_message(
         message.from_user.id,
         text="What we will do?",

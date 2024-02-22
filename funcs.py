@@ -124,6 +124,19 @@ def get_balance():
         logging.warning("func count_access - error", exc_info=True)
 
 
+def access_weight():
+    try:
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute("SELECT weight FROM my_weight ORDER BY id DESC LIMIT 1")
+            my_weight = cur.fetchone()[0]
+            cur.execute("SELECT weight FROM lift_weights ORDER BY id DESC LIMIT 1")
+            lift_weight = cur.fetchone()[0]
+        return ((90 - float(my_weight)) * 5) + float(lift_weight)
+    except Exception:
+        logging.warning("func access_weight - error", exc_info=True)
+
+
 def get_temperature():
     try:
         city = "Москва"
