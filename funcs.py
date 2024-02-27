@@ -103,23 +103,42 @@ def socket_client(data_send, server=config.socket_server, port=config.socket_por
 
 def get_balance():
     try:
-        day_routines = 8
-        week_days = 7
+        # day_routines = 8
+        # week_days = 7
+        # with sq.connect(config.database) as con:
+        #     cur = con.cursor()
+        #     cur.execute("SELECT count(event) FROM events")
+        #     count_events = int(cur.fetchone()[0])
+        #     cur.execute("SELECT count(success) FROM routine WHERE success = 1")
+        #     count_routine = int(cur.fetchone()[0])
+        #     cur.execute("SELECT count(date) FROM dates WHERE date < date('now')")
+        #     count_dates = int(cur.fetchone()[0])
+        #     cur.execute("SELECT count() FROM routine WHERE task_id = 91 AND success = 0")
+        #     bad_hand = cur.fetchone()[0] * 0.1
+        #     routine_balance = (count_routine - count_dates * day_routines) / day_routines
+        #     event_balance = count_dates - count_events * week_days
+        #     balance = (event_balance + routine_balance) / week_days - bad_hand
+        #     logging.info(f"Balance {balance}")
+        #     return round(balance, 3)
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute("SELECT count(event) FROM events")
+            cur.execute("SELECT count() FROM events")
             count_events = int(cur.fetchone()[0])
+            cur.execute("SELECT count() FROM dates WHERE date < date('now')")
+            count_dates = int(cur.fetchone()[0])
+            cur.execute("SELECT count() FROM tasks WHERE success = 1")
+            count_success_tasks = int(cur.fetchone()[0])
             cur.execute("SELECT count(success) FROM routine WHERE success = 1")
             count_routine = int(cur.fetchone()[0])
-            cur.execute("SELECT count(date) FROM dates WHERE date < date('now')")
-            count_dates = int(cur.fetchone()[0])
-            cur.execute("SELECT count() FROM routine WHERE task_id = 91 AND success = 0")
-            bad_hand = cur.fetchone()[0] * 0.1
-            routine_balance = (count_routine - count_dates * day_routines) / day_routines
-            event_balance = count_dates - count_events * week_days
-            balance = (event_balance + routine_balance) / week_days - bad_hand
-            logging.info(f"Balance {balance}")
-            return round(balance, 3)
+            cur.execute("SELECT count() FROM routine WHERE task_id = 527 AND success = 0")
+            bad_thoughts = cur.fetchone()[0]
+            cur.execute("SELECT count() FROM routine WHERE task_id = 528 AND success = 0")
+            bad_eyes = cur.fetchone()[0]
+            cur.execute("SELECT count() FROM routine WHERE task_id = 529 AND success = 0")
+            bad_hand = cur.fetchone()[0]
+        bad_doing = bad_thoughts * 1 + bad_eyes * 2 + bad_hand * 3
+        result = count_success_tasks + count_routine * 0.1 - count_dates - count_events * 2 - bad_doing
+        return result
     except Exception:
         logging.warning("func count_access - error", exc_info=True)
 
