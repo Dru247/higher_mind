@@ -137,7 +137,8 @@ def get_balance():
             cur.execute("SELECT count() FROM routine WHERE task_id = 529 AND success = 0")
             bad_hand = cur.fetchone()[0]
         bad_doing = bad_thoughts * 1 + bad_eyes * 2 + bad_hand * 3
-        result = count_success_tasks + count_routine * 0.1 - count_dates - count_events * 2 - bad_doing
+        # result = count_success_tasks + count_routine * 0.1 - count_dates - count_events * 2 - bad_doing
+        result = count_success_tasks + count_routine * 0.1
         return result
     except Exception:
         logging.warning("func count_access - error", exc_info=True)
@@ -151,7 +152,7 @@ def access_weight():
             my_weight = cur.fetchone()[0]
             cur.execute("SELECT weight FROM lift_weights ORDER BY id DESC LIMIT 1")
             lift_weight = cur.fetchone()[0]
-        return ((90 - float(my_weight)) * 5) + float(lift_weight)
+        return ((90 - float(my_weight)) * 6) + float(lift_weight)
     except Exception:
         logging.warning("func access_weight - error", exc_info=True)
 
