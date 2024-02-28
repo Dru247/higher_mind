@@ -52,15 +52,15 @@ def routine_check():
                     UPDATE routine SET success = 1
                     WHERE task_id = 121
                     AND date_id = (SELECT id FROM dates WHERE date = date('now'))
-                    """)
-            cur.execute(f"""
+                """)
+            cur.execute("""
                 SELECT routine.id, tasks.task, tasks.id
                 FROM routine
                 JOIN tasks ON routine.task_id = tasks.id
                 WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
-                AND success = {0}
+                AND routine.success = 0
                 AND task_id != 121
-                """)
+            """)
             results = cur.fetchall()
             if results:
                 logging.info(f"func routine_daily_check_2: exist daily routine ({results})")
