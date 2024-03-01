@@ -152,7 +152,27 @@ def access_weight():
             my_weight = cur.fetchone()[0]
             cur.execute("SELECT weight FROM lift_weights ORDER BY id DESC LIMIT 1")
             lift_weight = cur.fetchone()[0]
-        return ((90 - float(my_weight)) * 6) + float(lift_weight)
+            cur.execute("""
+                SELECT count() FROM routine
+                WHERE task_id = 106
+                AND success = 1
+                AND date_id BETWEEN
+                (SELECT id FROM dates WHERE date = date('now', '-7 day'))
+                AND
+                (SELECT id FROM dates WHERE date = date('now'))
+            """)
+            gum = int(cur.fetchone()[0])
+            cur.execute("""
+                SELECT count() FROM routine
+                WHERE task_id = 107
+                AND success = 1
+                AND date_id BETWEEN
+                (SELECT id FROM dates WHERE date = date('now', '-7 day'))
+                AND
+                (SELECT id FROM dates WHERE date = date('now'))
+            """)
+            stretch = int(cur.fetchone()[0]) * 3
+        return ((90 - float(my_weight)) * 5) + float(lift_weight) + gum + stretch
     except Exception:
         logging.warning("func access_weight - error", exc_info=True)
 

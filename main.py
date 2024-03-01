@@ -62,25 +62,25 @@ def routine_check():
                 AND task_id != 121
             """)
             results = cur.fetchall()
-            if results:
-                logging.info(f"func routine_daily_check_2: exist daily routine ({results})")
-                for result in results:
-                    routine_id = result[0]
-                    keyboard = types.InlineKeyboardMarkup()
-                    key_1 = types.InlineKeyboardButton(
-                        text='Выполнено',
-                        callback_data=f"routine_set_status {routine_id};1")
-                    key_2 = types.InlineKeyboardButton(
-                        text='Не выполнено',
-                        callback_data=f"routine_set_status {routine_id};0")
-                    keyboard.add(key_1, key_2)
-                    bot.send_message(
-                        config.telegram_my_id,
-                        text=f"{result[2]}: {result[1]}",
-                        reply_markup=keyboard)
-            else:
-                logging.info(f"func routine_daily_check_2: not exist daily routine ({results})")
-                bot.send_message(config.telegram_my_id, text=f"Сегодня задач не было")
+        if results:
+            logging.info(f"func routine_daily_check_2: exist daily routine ({results})")
+            for result in results:
+                routine_id = result[0]
+                keyboard = types.InlineKeyboardMarkup()
+                key_1 = types.InlineKeyboardButton(
+                    text='Выполнено',
+                    callback_data=f"routine_set_status {routine_id};1")
+                key_2 = types.InlineKeyboardButton(
+                    text='Не выполнено',
+                    callback_data=f"routine_set_status {routine_id};0")
+                keyboard.add(key_1, key_2)
+                bot.send_message(
+                    config.telegram_my_id,
+                    text=f"{result[2]}: {result[1]}",
+                    reply_markup=keyboard)
+        else:
+            logging.info(f"func routine_daily_check_2: not exist daily routine ({results})")
+            bot.send_message(config.telegram_my_id, text=f"Сегодня задач не было")
     except Exception:
         logging.critical(msg="func routine_daily_check_2 - error", exc_info=True)
         bot.send_message(chat_id=config.telegram_my_id, text="Некорректно")
@@ -681,23 +681,7 @@ def access_check(message, call_data):
 def search_add(message, call_data):
     try:
         data = call_data.split()[1]
-        if data == "people":
-            def check_people(message):
-                data_msg = message.text.strip()
-                data_check = data_msg.split(";")
-                if len(data_check) == 4 and len(data_check[3]) == 12:
-                    funcs.socket_client(data_send=f"{data}: {data_msg}")
-                else:
-                    bot.send_message(chat_id=message.chat.id, text="Error")
-
-            funcs.socket_client(data_send="view_people_prof")
-            msg = bot.send_message(
-                chat_id=message.chat.id,
-                text="Введи данные в формате (4) Nam;Add;Met;Pho"
-            )
-            bot.register_next_step_handler(message=msg, callback=check_people)
-
-        elif data == "event":
+        if data == "event":
             def check_event(message):
                 data_msg = message.text.strip()
                 if len(data_msg.split(";")) == 5:
@@ -724,19 +708,6 @@ def search_add(message, call_data):
             funcs.socket_client(data_send="view_people_prof")
             msg = bot.send_message(chat_id=message.chat.id, text="Введи данные в формате ID_Peo;Number")
             bot.register_next_step_handler(message=msg, callback=check_peo_prof)
-
-        elif data == "grades":
-            def check_grades(message):
-                data_msg = message.text.strip()
-                data_check = data_msg.split(";")
-                if len(data_check) == 2 and len(data_check[1]) == 12:
-                    funcs.socket_client(data_send=f"{data}: {data_msg}")
-                else:
-                    bot.send_message(chat_id=message.chat.id, text="Error")
-
-            funcs.socket_client(data_send="view_people_prof")
-            msg = bot.send_message(chat_id=message.chat.id, text="Введи данные в формате ID_Peo;12char")
-            bot.register_next_step_handler(message=msg, callback=check_grades)
 
         elif data == "prof_later":
             def check_prof_later(message):
@@ -788,23 +759,17 @@ def task_completed(message):
     key_4 = types.InlineKeyboardButton(
         text="Email",
         callback_data='search email')
-    # key_5 = types.InlineKeyboardButton(
-    #     text="Add people",
-    #     callback_data='emailer_add people')
-    key_6 = types.InlineKeyboardButton(
+    key_5 = types.InlineKeyboardButton(
         text="Add ev",
         callback_data='emailer_add event')
-    key_7 = types.InlineKeyboardButton(
+    key_6 = types.InlineKeyboardButton(
         text="Add p_pr",
         callback_data='emailer_add peo_prof')
-    key_8 = types.InlineKeyboardButton(
-        text="Add grades",
-        callback_data='emailer_add grades')
-    key_9 = types.InlineKeyboardButton(
+    key_7 = types.InlineKeyboardButton(
         text="Pr later",
         callback_data='emailer_add prof_later')
 
-    keyboard.add(key_1, key_2, key_3, key_4, key_6, key_7, key_8, key_9)
+    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7)
     bot.send_message(
         message.from_user.id,
         text="What we will do?",
