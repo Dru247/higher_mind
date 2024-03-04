@@ -1,5 +1,3 @@
-import random
-
 import config
 import datetime
 import funcs
@@ -91,8 +89,14 @@ def set_routine_status(message, call_data):
         data = call_data.split()[1].split(";")
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"UPDATE routine SET success = {data[1]} WHERE id = {data[0]}")
-            cur.execute(f"SELECT task_id FROM routine WHERE id = {data[0]}")
+            cur.execute(
+                f"UPDATE routine SET success = ? WHERE id = ?",
+                (data[1], data[0])
+            )
+            cur.execute(
+                "SELECT task_id FROM routine WHERE id = ?",
+                (data[0],)
+            )
             task_id = cur.fetchone()[0]
         if data[1] == "1":
             bot.send_message(chat_id=message.chat.id, text=f"Задача №{task_id} выполнена")
@@ -164,9 +168,8 @@ def add_type_field_task(message):
             bot.send_message(
                 message.chat.id,
                 text=f"Новый тип задач ({message.text}) добавлен",
-                reply_markup = keyboard_main
+                reply_markup=keyboard_main
             )
-        
     except Exception:
         logging.critical("func add_routine - error", exc_info=True)
         bot.send_message(message.chat.id, 'Некорректно')
@@ -274,7 +277,10 @@ def change_task_text(message, data):
     try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"UPDATE tasks SET task = '{message.text}' WHERE id = '{data}'")
+            cur.execute(
+                "UPDATE tasks SET task = ? WHERE id = ?",
+                (message.text, data)
+            )
             bot.send_message(chat_id=message.chat.id, text="Успех")
     except Exception:
         logging.critical(msg="func change_task_text - error", exc_info=True)
@@ -389,7 +395,6 @@ def list_tasks(message):
             message.from_user.id,
             text="Выбери проект",
             reply_markup=keyboard)
-
     except Exception:
         logging.critical("func 'list_tasks' - error", exc_info=True)
 
@@ -444,13 +449,15 @@ def tasks_tomorrow():
             text=f"Баланс: {funcs.get_balance()}")
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"""
+            cur.execute(
+                f"""
                 SELECT id, task FROM tasks
                 WHERE project_id = (SELECT project_id FROM week_project ORDER BY id DESC LIMIT 1)
                 AND success = 0
                 ORDER BY random()
                 LIMIT 8
-                """)
+                """
+            )
             for result in cur.fetchall():
                 keyboard = types.InlineKeyboardMarkup()
                 keyboard.add(
@@ -475,11 +482,12 @@ def add_routine_tomorrow(message, call_data):
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute(
-                f"""INSERT INTO routine (date_id, task_id)
-                VALUES (
-                    (SELECT id FROM dates WHERE date = '{data[1]}'),
-                    {data[0]}
-                )""")
+                """
+                INSERT INTO routine (date_id, task_id)
+                VALUES ((SELECT id FROM dates WHERE date = ?), ?)
+                """,
+                (data[1], data[0])
+            )
             bot.send_message(
                 message.chat.id,
                 text=f"Задача №{data[0]}: добавлена на исполнение")

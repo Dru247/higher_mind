@@ -137,8 +137,7 @@ def get_balance():
             cur.execute("SELECT count() FROM routine WHERE task_id = 529 AND success = 0")
             bad_hand = cur.fetchone()[0]
         bad_doing = bad_thoughts * 1 + bad_eyes * 2 + bad_hand * 3
-        # result = count_success_tasks + count_routine * 0.1 - count_dates - count_events * 2 - bad_doing
-        result = count_success_tasks + count_routine * 0.1
+        result = count_success_tasks + count_routine * 0.1 - count_dates - count_events * 3 - bad_doing
         return result
     except Exception:
         logging.warning("func count_access - error", exc_info=True)
