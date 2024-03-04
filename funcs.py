@@ -113,11 +113,11 @@ def get_balance():
             count_success_tasks = int(cur.fetchone()[0])
             cur.execute("SELECT count(success) FROM routine WHERE success = 1")
             count_routine = int(cur.fetchone()[0])
-            cur.execute("SELECT count() FROM routine WHERE task_id = 527 AND success = 0")
+            cur.execute("SELECT count() FROM routine WHERE task_id = 494 AND success = 0")
             bad_thoughts = cur.fetchone()[0]
-            cur.execute("SELECT count() FROM routine WHERE task_id = 528 AND success = 0")
+            cur.execute("SELECT count() FROM routine WHERE task_id = 495 AND success = 0")
             bad_eyes = cur.fetchone()[0]
-            cur.execute("SELECT count() FROM routine WHERE task_id = 529 AND success = 0")
+            cur.execute("SELECT count() FROM routine WHERE task_id = 496 AND success = 0")
             bad_hand = cur.fetchone()[0]
         bad_doing = bad_thoughts + bad_eyes * 2 + bad_hand * 3
         result = count_success_tasks + count_routine * 0.1 - count_dates - count_events * 3 - bad_doing
