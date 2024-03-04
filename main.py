@@ -299,7 +299,7 @@ def change_task_set_type(message, call_data):
                         text=record[1],
                         callback_data=f"change_task_choice_type {data};{record[0]}"))
             keyboard = types.InlineKeyboardMarkup()
-            keyboard.row(*inline_keys)
+            keyboard.add(*inline_keys)
         bot.send_message(
             message.chat.id,
             text="Введи тип задачи",
@@ -313,7 +313,10 @@ def change_task_type(message, call_data):
         data = call_data.split()[1].split(";")
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"UPDATE tasks SET project_id = '{data[1]}' WHERE id = '{data[0]}'")
+            cur.execute(
+                "UPDATE tasks SET project_id = ? WHERE id = ?",
+                (data[1], data[0])
+            )
             bot.send_message(chat_id=message.chat.id, text="Успех")
     except Exception:
         logging.critical(msg="func change_task_type - error", exc_info=True)
@@ -332,7 +335,7 @@ def change_task_set_frequency(message, call_data):
                         text=record[1],
                         callback_data=f"change_task_choice_frequency {data};{record[0]}"))
             keyboard = types.InlineKeyboardMarkup()
-            keyboard.row(*inline_keys)
+            keyboard.add(*inline_keys)
         bot.send_message(
             message.chat.id,
             text="Введи периодичность задачи",
@@ -346,7 +349,10 @@ def change_task_frequency(message, call_data):
         data = call_data.split()[1].split(";")
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"UPDATE tasks SET frequency_id = '{data[1]}' WHERE id = '{data[0]}'")
+            cur.execute(
+                "UPDATE tasks SET frequency_id = ? WHERE id = ?",
+                (data[1], data[0])
+            )
             bot.send_message(chat_id=message.chat.id, text="Успех")
     except Exception:
         logging.critical(msg="func change_task_frequency - error", exc_info=True)
@@ -404,15 +410,21 @@ def list_tasks_view(message1, call_data):
         project = call_data.split()[1]
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"SELECT field_name FROM projects WHERE id = {project}")
+            cur.execute(
+                "SELECT field_name FROM projects WHERE id = ?",
+                (project,)
+            )
             project_name = cur.fetchone()[0]
-            cur.execute(f"""
+            cur.execute(
+                """
                 SELECT tasks.id, tasks.task, frequencies.name
                 FROM tasks
                 JOIN frequencies ON tasks.frequency_id = frequencies.id
-                WHERE project_id = {project}
+                WHERE project_id = ?
                 AND success = 0
-            """)
+                """,
+                (project,)
+            )
             message = MIMEMultipart()
             message["From"] = config.my_email_mailru
             message["To"] = config.my_email_yandex
