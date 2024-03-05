@@ -188,7 +188,7 @@ def set_task(message, call_data):
                         text=record[1],
                         callback_data=f"task_select_frequency {id_field};{record[0]}"))
             keyboard = types.InlineKeyboardMarkup()
-            keyboard.row(*inline_keys)
+            keyboard.add(*inline_keys)
         bot.send_message(
             message.chat.id,
             text="Введи тип задачи",
@@ -550,55 +550,56 @@ def add_my_weight(message):
         logging.error(msg="func add_my_weight - error", exc_info=True)
 
 
+def get_week_project(date_now):
+    tomorrow = date_now + datetime.timedelta(days=1)
+    projects = [1, 2, 4, 5, 6, 8, 10, 11]
+    with sq.connect(config.database) as con:
+        cur = con.cursor()
+        cur.execute("SELECT count() FROM week_project")
+        count_projects = int(cur.fetchone()[0])
+        result = projects[count_projects % len(projects)]
+        cur.execute("SELECT id, field_name FROM projects WHERE id = ?", (result,))
+        result_project = cur.fetchone()
+        cur.execute(
+            "INSERT INTO week_project (week, project_id) VALUES (?, ?)",
+            (f"{tomorrow.isocalendar()[0]}-{tomorrow.isocalendar()[1]}", result_project[0])
+        )
+    return result_project[1]
+
+
 def planning_week():
     try:
         date_now = datetime.date.today()
-        tomorrow = date_now + datetime.timedelta(days=1)
+        bot.send_message(
+            config.telegram_my_id,
+            text=f"{get_week_project(date_now)} - проект следующей недели"
+        )
+        week = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute("""
-                SELECT id, field_name
-                FROM projects
-                ORDER BY random()
-                LIMIT 1
-                """)
-            cur.execute("SELECT id, field_name FROM projects ORDER BY random() LIMIT 1")
-            result_project = cur.fetchone()
-            bot.send_message(
-                config.telegram_my_id,
-                text=f"{result_project[1]} - проект следующей недели")
-            cur.execute(f"""
-                INSERT INTO week_project (week, project_id)
-                VALUES (
-                    '{tomorrow.isocalendar()[0]}-{tomorrow.isocalendar()[1]}',
-                    {result_project[0]}
-                    )
-                """)
-            week = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
             for day in range(1, 8):
                 cur.execute(f"""
                     INSERT OR IGNORE INTO dates (date)
                     VALUES (date('now','+{day} day'))
                 """)
             con.commit()
-            cur.execute("""SELECT id, tasks.task
-                FROM tasks
-                WHERE frequency_id = 2
-                """)
-            for result in cur:
-                keyboard = types.InlineKeyboardMarkup()
-                keys = []
-                for number, day in enumerate(week):
-                    date = date_now + datetime.timedelta(days=number + 1)
-                    key = types.InlineKeyboardButton(
-                        text=day,
-                        callback_data=f"routine_week {date.isoformat()};{result[0]}")
-                    keys.append(key)
-                keyboard.row(*keys)
-                bot.send_message(
-                    config.telegram_my_id,
-                    text=f"Запланируй задачу №{result[0]}: {result[1]}",
-                    reply_markup=keyboard)
+            cur.execute("SELECT id, tasks.task FROM tasks WHERE frequency_id = 2")
+            result = cur.fetchall()
+        for line in result:
+            keyboard = types.InlineKeyboardMarkup()
+            keys = []
+            for number, day in enumerate(week):
+                date = date_now + datetime.timedelta(days=number + 1)
+                key = types.InlineKeyboardButton(
+                    text=day,
+                    callback_data=f"routine_week {date.isoformat()};{line[0]}")
+                keys.append(key)
+            keyboard.row(*keys)
+            bot.send_message(
+                config.telegram_my_id,
+                text=f"Запланируй задачу №{line[0]}: {line[1]}",
+                reply_markup=keyboard
+            )
     except Exception:
         logging.error("func planning_week - error", exc_info=True)
 
