@@ -29,59 +29,69 @@ commands = ["Cоздать задачу",
             "Cписок задач"]
 
 keyboard_main = types.ReplyKeyboardMarkup(resize_keyboard=True)
-item_1 = types.KeyboardButton(commands[0])
-item_2 = types.KeyboardButton(commands[1])
-item_3 = types.KeyboardButton(commands[2])
-keyboard_main.row(item_1, item_2, item_3)
+keyboard_main.row(*[types.KeyboardButton(cmd) for cmd in commands])
 
 
-# routine
-def routine_check():
+def check_unseen_msgs(number_task):
     try:
         funcs.preparation_emails()
+        max_unseen_msgs = 40
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            max_unseen_msgs = 40
             cur.execute("SELECT sum(unseen_status) FROM emails")
             result = cur.fetchone()[0]
-            logging.info(f"Unseen msg = {result}")
-            if int(result) < max_unseen_msgs:
-                cur.execute("""
+            if result < max_unseen_msgs:
+                cur.execute(
+                    """
                     UPDATE routine SET success = 1
-                    WHERE task_id = 121
+                    WHERE task_id = ?
                     AND date_id = (SELECT id FROM dates WHERE date = date('now'))
-                """)
-            cur.execute("""
-                SELECT routine.id, tasks.task, tasks.id
+                    """,
+                    (number_task,)
+                )
+    except Exception:
+        logging.critical(msg="func check_unseen_msgs - error", exc_info=True)
+
+
+def routine_check():
+    try:
+        task_unseen_msg = 117
+        check_unseen_msgs(task_unseen_msg)
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                SELECT routine.id, tasks.task, tasks.id, tasks.frequency_id
                 FROM routine
                 JOIN tasks ON routine.task_id = tasks.id
                 WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
                 AND routine.success = 0
-                AND task_id != 121
-            """)
+                AND task_id != ?
+                """,
+                (task_unseen_msg,)
+            )
             results = cur.fetchall()
-        if results:
-            logging.info(f"func routine_daily_check_2: exist daily routine ({results})")
-            for result in results:
-                routine_id = result[0]
-                keyboard = types.InlineKeyboardMarkup()
-                key_1 = types.InlineKeyboardButton(
-                    text='Выполнено',
-                    callback_data=f"routine_set_status {routine_id};1")
-                key_2 = types.InlineKeyboardButton(
-                    text='Не выполнено',
-                    callback_data=f"routine_set_status {routine_id};0")
-                keyboard.add(key_1, key_2)
-                bot.send_message(
-                    config.telegram_my_id,
-                    text=f"{result[2]}: {result[1]}",
-                    reply_markup=keyboard)
-        else:
-            logging.info(f"func routine_daily_check_2: not exist daily routine ({results})")
-            bot.send_message(config.telegram_my_id, text=f"Сегодня задач не было")
+        for result in results:
+            keys = []
+            keyboard = types.InlineKeyboardMarkup()
+            keys.append(types.InlineKeyboardButton(
+                text="Выполнено",
+                callback_data=f"routine_set_status {result[0]};1"))
+            keys.append(types.InlineKeyboardButton(
+                text="Не выполнено",
+                callback_data=f"routine_set_status {result[0]};0"))
+            if result[3] == 5:
+                keys.append(types.InlineKeyboardButton(
+                    text="Задача выполнена",
+                    callback_data=f"change_task_success {result[2]}"))
+            keyboard.add(*keys)
+            bot.send_message(
+                config.telegram_my_id,
+                text=f"{result[2]}: {result[1]}",
+                reply_markup=keyboard
+            )
     except Exception:
         logging.critical(msg="func routine_daily_check_2 - error", exc_info=True)
-        bot.send_message(chat_id=config.telegram_my_id, text="Некорректно")
 
 
 def set_routine_status(message, call_data):
@@ -376,7 +386,10 @@ def change_task_success(message, call_data):
         task_id = call_data.split()[1]
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute("UPDATE tasks SET success = 1 WHERE id = ?", (task_id,))
+            cur.execute(
+                "UPDATE tasks SET success = 1, datetime_success = datetime('now') WHERE id = ?",
+                (task_id,)
+            )
         bot.send_message(
             chat_id=message.chat.id,
             text=f"Задача №{task_id} выполнена")
@@ -551,20 +564,23 @@ def add_my_weight(message):
 
 
 def get_week_project(date_now):
-    tomorrow = date_now + datetime.timedelta(days=1)
-    projects = [1, 2, 4, 5, 6, 8, 10, 11]
-    with sq.connect(config.database) as con:
-        cur = con.cursor()
-        cur.execute("SELECT count() FROM week_project")
-        count_projects = int(cur.fetchone()[0])
-        result = projects[count_projects % len(projects)]
-        cur.execute("SELECT id, field_name FROM projects WHERE id = ?", (result,))
-        result_project = cur.fetchone()
-        cur.execute(
-            "INSERT INTO week_project (week, project_id) VALUES (?, ?)",
-            (f"{tomorrow.isocalendar()[0]}-{tomorrow.isocalendar()[1]}", result_project[0])
-        )
-    return result_project[1]
+    try:
+        tomorrow = date_now + datetime.timedelta(days=1)
+        projects = [1, 2, 4, 5, 6, 8, 10, 11]
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute("SELECT count() FROM week_project")
+            count_projects = int(cur.fetchone()[0])
+            result = projects[count_projects % len(projects)]
+            cur.execute("SELECT id, field_name FROM projects WHERE id = ?", (result,))
+            result_project = cur.fetchone()
+            cur.execute(
+                "INSERT INTO week_project (week, project_id) VALUES (?, ?)",
+                (f"{tomorrow.isocalendar()[0]}-{tomorrow.isocalendar()[1]}", result_project[0])
+            )
+        return result_project[1]
+    except Exception:
+        logging.error(msg="func get_week_project - error", exc_info=True)
 
 
 def planning_week():
