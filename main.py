@@ -481,7 +481,7 @@ def tasks_tomorrow():
                     AND success = 0
                     AND frequency_id = 5
                     AND id NOT IN (SELECT task_id FROM routine WHERE date_id = (SELECT id FROM dates WHERE date = date('now')))
-                    ORDER BY random() LIMIT 1)
+                    ORDER BY random() LIMIT 2)
                 UNION
                 SELECT * FROM 
                     (SELECT id, task FROM tasks
@@ -557,7 +557,13 @@ def add_my_weight(message):
         weight = message.text.strip()
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute("INSERT INTO my_weight (weight) VALUES (?)", (weight,))
+            cur.execute(
+                """
+                INSERT INTO my_weight (date_id, weight)
+                VALUES ((SELECT id FROM dates WHERE date = date('now')), ?)
+                """,
+                (weight,)
+            )
         bot.send_message(chat_id=config.telegram_my_id, text=f"goal:{funcs.access_weight()}")
     except Exception:
         logging.error(msg="func add_my_weight - error", exc_info=True)
@@ -660,17 +666,6 @@ def add_date():
         if week_day == 6:
             planning_week()
             funcs.save_logs()
-            with sq.connect(config.database) as con:
-                cur = con.cursor()
-                cur.execute(
-                    """INSERT INTO tasks (user_id, project_id, frequency_id, task)
-                    VALUES (1, 1, 5, 'Прочитать логи')""")
-                cur.execute(
-                    f"""INSERT INTO routine (date_id, task_id)
-                    VALUES (
-                        (SELECT id FROM dates WHERE date = date('now','+1 day')),
-                        {cur.lastrowid})
-                    """)
     except Exception:
         logging.error("func add_date - error", exc_info=True)
 

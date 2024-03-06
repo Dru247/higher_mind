@@ -128,8 +128,8 @@ def get_balance():
 
 def access_weight():
     try:
-        id_stretch_task = 103
         id_gum_task = 102
+        id_stretch_task = 103
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("SELECT weight FROM my_weight ORDER BY id DESC LIMIT 1")
