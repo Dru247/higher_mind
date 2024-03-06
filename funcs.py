@@ -128,31 +128,39 @@ def get_balance():
 
 def access_weight():
     try:
+        id_stretch_task = 103
+        id_gum_task = 102
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("SELECT weight FROM my_weight ORDER BY id DESC LIMIT 1")
             my_weight = cur.fetchone()[0]
             cur.execute("SELECT weight FROM lift_weights ORDER BY id DESC LIMIT 1")
             lift_weight = cur.fetchone()[0]
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT count() FROM routine
-                WHERE task_id = 106
+                WHERE task_id = ?
                 AND success = 1
                 AND date_id BETWEEN
                 (SELECT id FROM dates WHERE date = date('now', '-7 day'))
                 AND
                 (SELECT id FROM dates WHERE date = date('now'))
-            """)
+                """,
+                (id_gum_task,)
+            )
             gum = int(cur.fetchone()[0])
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT count() FROM routine
-                WHERE task_id = 107
+                WHERE task_id = ?
                 AND success = 1
                 AND date_id BETWEEN
                 (SELECT id FROM dates WHERE date = date('now', '-7 day'))
                 AND
                 (SELECT id FROM dates WHERE date = date('now'))
-            """)
+                """,
+                (id_stretch_task,)
+            )
             stretch = int(cur.fetchone()[0]) * 3
         return ((90 - float(my_weight)) * 5) + float(lift_weight) + gum + stretch
     except Exception:
