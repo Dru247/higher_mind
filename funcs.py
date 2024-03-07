@@ -111,8 +111,6 @@ def get_balance():
             count_dates = int(cur.fetchone()[0])
             cur.execute("SELECT count() FROM tasks WHERE success = 1")
             count_success_tasks = int(cur.fetchone()[0])
-            cur.execute("SELECT count(success) FROM routine WHERE success = 1")
-            count_routine = int(cur.fetchone()[0])
             cur.execute("SELECT count() FROM routine WHERE task_id = 494 AND success = 0")
             bad_thoughts = cur.fetchone()[0]
             cur.execute("SELECT count() FROM routine WHERE task_id = 495 AND success = 0")
@@ -120,7 +118,7 @@ def get_balance():
             cur.execute("SELECT count() FROM routine WHERE task_id = 496 AND success = 0")
             bad_hand = cur.fetchone()[0]
         bad_doing = bad_thoughts + bad_eyes * 2 + bad_hand * 3
-        result = count_success_tasks + count_routine * 0.1 - count_dates - count_events * 3 - bad_doing
+        result = count_success_tasks - count_dates - count_events * 3 - bad_doing
         return result
     except Exception:
         logging.warning("func count_access - error", exc_info=True)
@@ -128,41 +126,25 @@ def get_balance():
 
 def access_weight():
     try:
-        id_gum_task = 102
-        id_stretch_task = 103
         with sq.connect(config.database) as con:
             cur = con.cursor()
+            cur.execute("""
+                SELECT sum(priorities.grade)
+                FROM routine
+                JOIN tasks ON tasks.id = routine.task_id
+                JOIN priorities ON priorities.id = tasks.priority_id
+                WHERE routine.success = 1
+                AND date_id IN
+                (SELECT id FROM dates
+                WHERE date >= date('now', '-7 day')
+                AND date < date('now'))
+            """)
+            sum_routine = cur.fetchone()[0]
             cur.execute("SELECT weight FROM my_weight ORDER BY id DESC LIMIT 1")
             my_weight = cur.fetchone()[0]
             cur.execute("SELECT weight FROM lift_weights ORDER BY id DESC LIMIT 1")
             lift_weight = cur.fetchone()[0]
-            cur.execute(
-                """
-                SELECT count() FROM routine
-                WHERE task_id = ?
-                AND success = 1
-                AND date_id BETWEEN
-                (SELECT id FROM dates WHERE date = date('now', '-7 day'))
-                AND
-                (SELECT id FROM dates WHERE date = date('now'))
-                """,
-                (id_gum_task,)
-            )
-            gum = int(cur.fetchone()[0])
-            cur.execute(
-                """
-                SELECT count() FROM routine
-                WHERE task_id = ?
-                AND success = 1
-                AND date_id BETWEEN
-                (SELECT id FROM dates WHERE date = date('now', '-7 day'))
-                AND
-                (SELECT id FROM dates WHERE date = date('now'))
-                """,
-                (id_stretch_task,)
-            )
-            stretch = int(cur.fetchone()[0]) * 3
-        return ((90 - float(my_weight)) * 5) + float(lift_weight) + gum + stretch
+        return (90 - my_weight) * 5 + lift_weight + sum_routine
     except Exception:
         logging.warning("func access_weight - error", exc_info=True)
 
