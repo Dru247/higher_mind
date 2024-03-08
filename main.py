@@ -430,11 +430,13 @@ def list_tasks_view(message1, call_data):
             project_name = cur.fetchone()[0]
             cur.execute(
                 """
-                SELECT tasks.id, tasks.task, frequencies.name
+                SELECT tasks.id, tasks.task, frequencies.name, priorities.priority
                 FROM tasks
                 JOIN frequencies ON tasks.frequency_id = frequencies.id
+                JOIN priorities ON priorities.id = tasks.priority_id
                 WHERE project_id = ?
                 AND success = 0
+                ORDER BY priorities.grade DESC
                 """,
                 (project,)
             )
@@ -444,11 +446,11 @@ def list_tasks_view(message1, call_data):
             message["Subject"] = f'Список задач проекта "{project_name}"'
             data = f"""
                 <!DOCTYPE html><html><body><table><caption>{project_name}</caption>
-                <thead><tr><th>ID</th><th>Период.</th><th>Задача</th></tr></thead>
+                <thead><tr><th>ID</th><th>Период</th><th>Приоритет</th><th>Задача</th></tr></thead>
                 <tbody>
                 """
             for row in cur.fetchall():
-                data += f"<tr><td>{row[0]}</td><td>{row[2]}</td><td>{row[1]}</td></tr>"
+                data += f"<tr><td>{row[0]}</td><td>{row[2]}</td><td>{row[3]}</td><td>{row[1]}</td></tr>"
             data += "</tbody></table></body></html>"
             part = MIMEText(data, _subtype="html")
             message.attach(part)
