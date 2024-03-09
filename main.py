@@ -521,20 +521,25 @@ def tasks_tomorrow():
             cur = con.cursor()
             cur.execute("""
                 SELECT * FROM
-                    (SELECT id, task FROM tasks
+                    (SELECT id, task, project_id, priority_id
+                    FROM tasks
                     WHERE project_id = 3
                     AND success = 0
                     AND frequency_id = 5
                     AND id NOT IN (SELECT task_id FROM routine WHERE date_id = (SELECT id FROM dates WHERE date = date('now')))
-                    ORDER BY random() LIMIT 2)
+                    ORDER BY priority_id DESC, random()
+                    LIMIT 2)
                 UNION
                 SELECT * FROM 
-                    (SELECT id, task FROM tasks
+                    (SELECT id, task, project_id, priority_id
+                    FROM tasks
                     WHERE project_id = (SELECT project_id FROM week_project ORDER BY id DESC LIMIT 1)
                     AND success = 0
                     AND frequency_id = 5
                     AND id NOT IN (SELECT task_id FROM routine WHERE date_id = (SELECT id FROM dates WHERE date = date('now')))
-                    ORDER BY random() LIMIT 8)
+                    ORDER BY priority_id DESC, random()
+                    LIMIT 8)
+                ORDER BY project_id, priority_id DESC
             """)
             for result in cur.fetchall():
                 keyboard = types.InlineKeyboardMarkup()
