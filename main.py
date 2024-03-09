@@ -259,13 +259,16 @@ def change_task_set_field(message):
             text="Проект",
             callback_data=f"change_task_type {message.text}")
         key_4 = types.InlineKeyboardButton(
+            text="Приоритет",
+            callback_data=f"change_task_priority {message.text}")
+        key_5 = types.InlineKeyboardButton(
             text="Удалить",
             callback_data=f"change_task_remove {message.text}")
-        key_5 = types.InlineKeyboardButton(
+        key_6 = types.InlineKeyboardButton(
             text="Выполнить",
             callback_data=f"change_task_success {message.text}")
         keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(key_1, key_2, key_3, key_4, key_5)
+        keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6)
         bot.send_message(
             chat_id=message.chat.id,
             text="Что меняем?",
@@ -363,9 +366,49 @@ def change_task_frequency(message, call_data):
                 "UPDATE tasks SET frequency_id = ? WHERE id = ?",
                 (data[1], data[0])
             )
-            bot.send_message(chat_id=message.chat.id, text="Успех")
+        bot.send_message(chat_id=message.chat.id, text="Успех")
     except Exception:
         logging.critical(msg="func change_task_frequency - error", exc_info=True)
+
+
+def change_task_priority(message, call_data):
+    try:
+        task_id = call_data.split()[1]
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            inline_keys = []
+            cur.execute("SELECT id, priority FROM priorities")
+            result = cur.fetchall()
+        for record in result:
+            inline_keys.append(
+                types.InlineKeyboardButton(
+                    text=record[1],
+                    callback_data=f"change_task_set_priority {task_id};{record[0]}"
+                )
+            )
+        keyboard = types.InlineKeyboardMarkup()
+        keyboard.add(*inline_keys)
+        bot.send_message(
+            message.chat.id,
+            text="Выбери приоритет задачи",
+            reply_markup=keyboard
+        )
+    except Exception:
+        logging.critical(msg="func change_task_priority - error", exc_info=True)
+
+
+def change_task_set_priority(message, call_data):
+    try:
+        data = call_data.split()[1].split(";")
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute(
+                "UPDATE tasks SET priority_id = ? WHERE id = ?",
+                (data[1], data[0])
+            )
+        bot.send_message(chat_id=message.chat.id, text="Успех")
+    except Exception:
+        logging.critical(msg="func change_task_set_priority - error", exc_info=True)
 
 
 def change_task_remove(message, call_data):
@@ -430,11 +473,13 @@ def list_tasks_view(message1, call_data):
             project_name = cur.fetchone()[0]
             cur.execute(
                 """
-                SELECT tasks.id, tasks.task, frequencies.name
+                SELECT tasks.id, tasks.task, frequencies.name, priorities.priority
                 FROM tasks
                 JOIN frequencies ON tasks.frequency_id = frequencies.id
+                JOIN priorities ON priorities.id = tasks.priority_id
                 WHERE project_id = ?
                 AND success = 0
+                ORDER BY priorities.grade DESC
                 """,
                 (project,)
             )
@@ -444,11 +489,11 @@ def list_tasks_view(message1, call_data):
             message["Subject"] = f'Список задач проекта "{project_name}"'
             data = f"""
                 <!DOCTYPE html><html><body><table><caption>{project_name}</caption>
-                <thead><tr><th>ID</th><th>Период.</th><th>Задача</th></tr></thead>
+                <thead><tr><th>ID</th><th>Период</th><th>Приоритет</th><th>Задача</th></tr></thead>
                 <tbody>
                 """
             for row in cur.fetchall():
-                data += f"<tr><td>{row[0]}</td><td>{row[2]}</td><td>{row[1]}</td></tr>"
+                data += f"<tr><td>{row[0]}</td><td>{row[2]}</td><td>{row[3]}</td><td>{row[1]}</td></tr>"
             data += "</tbody></table></body></html>"
             part = MIMEText(data, _subtype="html")
             message.attach(part)
@@ -834,6 +879,10 @@ def callback_query(call):
         change_task_set_frequency(call.message, call.data)
     elif "change_task_choice_frequency" in call.data:
         change_task_frequency(call.message, call.data)
+    elif "change_task_priority" in call.data:
+        change_task_priority(call.message, call.data)
+    elif "change_task_set_priority" in call.data:
+        change_task_set_priority(call.message, call.data)
     elif "change_task_remove" in call.data:
         change_task_remove(call.message, call.data)
     elif "change_task_success" in call.data:
