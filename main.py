@@ -135,7 +135,7 @@ def set_user(message):
 
 
 # tasks
-def choice_field_type(message):
+def add_task(message):
     try:
         inline_keys = []
         with sq.connect(config.database) as con:
@@ -145,10 +145,10 @@ def choice_field_type(message):
                 inline_keys.append(
                     types.InlineKeyboardButton(
                         text=record[1],
-                        callback_data=f"task_select_field {record[0]}"))
-        inline_keys.append(types.InlineKeyboardButton(
-                                text='Новый проект',
-                                callback_data='new_type_field_task'))
+                        callback_data=f"add_task_project {record[0]}"))
+        # inline_keys.append(types.InlineKeyboardButton(
+        #                         text='Новый проект',
+        #                         callback_data='new_type_field_task'))
         keyboard = types.InlineKeyboardMarkup()
         keyboard.add(*inline_keys)
         bot.send_message(
@@ -156,36 +156,36 @@ def choice_field_type(message):
             text="Выбери проект",
             reply_markup=keyboard)
     except Exception:
-        logging.critical("func choice_field_type - error", exc_info=True)
+        logging.critical("func add_task - error", exc_info=True)
 
 
-def set_type_field_task(message):
-    try:
-        bot.send_message(message.chat.id, text="Введи новый тип задач")
-        bot.register_next_step_handler(message, add_type_field_task)
-    except Exception:
-        logging.critical("func set_user - error", exc_info=True)
+# def set_type_field_task(message):
+#     try:
+#         bot.send_message(message.chat.id, text="Введи новый тип задач")
+#         bot.register_next_step_handler(message, add_type_field_task)
+#     except Exception:
+#         logging.critical("func set_user - error", exc_info=True)
+#
+#
+# def add_type_field_task(message):
+#     try:
+#         with sq.connect(config.database) as con:
+#             cur = con.cursor()
+#             cur.execute(
+#                 "INSERT INTO projects (field_name) VALUES (?)",
+#                 (message.text,)
+#             )
+#             bot.send_message(
+#                 message.chat.id,
+#                 text=f"Новый тип задач ({message.text}) добавлен",
+#                 reply_markup=keyboard_main
+#             )
+#     except Exception:
+#         logging.critical("func add_routine - error", exc_info=True)
+#         bot.send_message(message.chat.id, 'Некорректно')
 
 
-def add_type_field_task(message):
-    try:
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            cur.execute(
-                "INSERT INTO projects (field_name) VALUES (?)",
-                (message.text,)
-            )
-            bot.send_message(
-                message.chat.id,
-                text=f"Новый тип задач ({message.text}) добавлен",
-                reply_markup=keyboard_main
-            )
-    except Exception:
-        logging.critical("func add_routine - error", exc_info=True)
-        bot.send_message(message.chat.id, 'Некорректно')
-
-
-def set_task(message, call_data):
+def add_task_frequency(message, call_data):
     try:
         id_field = call_data.split()[1]
         with sq.connect(config.database) as con:
@@ -196,7 +196,7 @@ def set_task(message, call_data):
                 inline_keys.append(
                     types.InlineKeyboardButton(
                         text=record[1],
-                        callback_data=f"task_select_frequency {id_field};{record[0]}"))
+                        callback_data=f"add_task_frequency {id_field};{record[0]}"))
             keyboard = types.InlineKeyboardMarkup()
             keyboard.add(*inline_keys)
         bot.send_message(
@@ -204,39 +204,35 @@ def set_task(message, call_data):
             text="Введи тип задачи",
             reply_markup=keyboard)
     except Exception:
-        logging.critical("func set_task - error", exc_info=True)
-        bot.send_message(message.chat.id, 'Некорректно')
+        logging.critical("func add_task_frequency - error", exc_info=True)
 
 
-def add_task(message, data):
+def add_task_text(message, data):
     try:
         bot.send_message(message.chat.id, "Введи текст задачи")
-        bot.register_next_step_handler(message, lambda m: add_task_2(m, data))
+        bot.register_next_step_handler(message, lambda m: add_task_final(m, data))
     except Exception:
-        logging.critical("func add_task - error", exc_info=True)
+        logging.critical("func add_task_text - error", exc_info=True)
 
 
-def add_task_2(message, data):
+def add_task_final(message, data):
     task_set = data.split()[1].split(";")
     try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"""
+            cur.execute(
+                f"""
                 INSERT INTO tasks (user_id, project_id, frequency_id, task)
-                VALUES ((SELECT id FROM users WHERE telegram_id = {message.chat.id}), {task_set[0]}, {task_set[1]}, '{message.text}')
-            """)
-            bot.send_message(message.chat.id, f"Задача №{cur.lastrowid}: создана")
-            if message.text[0] == "!":
-                cur.execute(f"""
-                    INSERT INTO routine (date_id, task_id)
-                    VALUES (
-                        (SELECT id FROM dates
-                        WHERE date = date('now')),
-                        {cur.lastrowid})
-                    """)
+                VALUES (
+                    (SELECT id FROM users WHERE telegram_id = ?), ?, ?, ?
+                )
+                """,
+                (message.chat.id, task_set[0], task_set[1], message.text)
+            )
+            last_id = cur.lastrowid
+        bot.send_message(message.chat.id, f"Задача №{last_id}: создана")
     except Exception:
-        logging.critical("func add_task - error", exc_info=True)
-        bot.send_message(message.chat.id, 'Некорректно')
+        logging.critical("func add_task_final - error", exc_info=True)
 
 
 def change_task_set_number(message):
@@ -257,18 +253,18 @@ def change_task_set_field(message):
             callback_data=f"change_task_frequency {message.text}")
         key_3 = types.InlineKeyboardButton(
             text="Проект",
-            callback_data=f"change_task_type {message.text}")
+            callback_data=f"change_task_project {message.text}")
         key_4 = types.InlineKeyboardButton(
             text="Приоритет",
             callback_data=f"change_task_priority {message.text}")
         key_5 = types.InlineKeyboardButton(
             text="Удалить",
             callback_data=f"change_task_remove {message.text}")
-        key_6 = types.InlineKeyboardButton(
-            text="Выполнить",
-            callback_data=f"change_task_success {message.text}")
+        # key_6 = types.InlineKeyboardButton(
+        #     text="Выполнить",
+        #     callback_data=f"change_task_success {message.text}")
         keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6)
+        keyboard.add(key_1, key_2, key_3, key_4, key_5)
         bot.send_message(
             chat_id=message.chat.id,
             text="Что меняем?",
@@ -277,16 +273,16 @@ def change_task_set_field(message):
         logging.critical(msg="func change_task_set_field - error", exc_info=True)
 
 
-def change_task_set_text(message, call_data):
+def change_task_text(message, call_data):
     try:
         data = call_data.split()[1]
         msg = bot.send_message(chat_id=message.chat.id, text="Введи текст задачи")
-        bot.register_next_step_handler(message=msg, callback=change_task_text, data=data)
+        bot.register_next_step_handler(message=msg, callback=change_task_set_text, data=data)
     except Exception:
-        logging.critical(msg="func change_task_set_text - error", exc_info=True)
+        logging.critical(msg="func change_task_text - error", exc_info=True)
 
 
-def change_task_text(message, data):
+def change_task_set_text(message, data):
     try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
@@ -296,10 +292,10 @@ def change_task_text(message, data):
             )
             bot.send_message(chat_id=message.chat.id, text="Успех")
     except Exception:
-        logging.critical(msg="func change_task_text - error", exc_info=True)
+        logging.critical(msg="func change_task_set_text - error", exc_info=True)
 
 
-def change_task_set_type(message, call_data):
+def change_task_project(message, call_data):
     try:
         data = call_data.split()[1]
         with sq.connect(config.database) as con:
@@ -310,18 +306,18 @@ def change_task_set_type(message, call_data):
                 inline_keys.append(
                     types.InlineKeyboardButton(
                         text=record[1],
-                        callback_data=f"change_task_choice_type {data};{record[0]}"))
+                        callback_data=f"change_task_set_project {data};{record[0]}"))
             keyboard = types.InlineKeyboardMarkup()
             keyboard.add(*inline_keys)
         bot.send_message(
             message.chat.id,
-            text="Введи тип задачи",
+            text="Введи проект задачи",
             reply_markup=keyboard)
     except Exception:
-        logging.critical(msg="func change_task_set_type - error", exc_info=True)
+        logging.critical(msg="func change_task_project - error", exc_info=True)
 
 
-def change_task_type(message, call_data):
+def change_task_set_project(message, call_data):
     try:
         data = call_data.split()[1].split(";")
         with sq.connect(config.database) as con:
@@ -332,10 +328,10 @@ def change_task_type(message, call_data):
             )
             bot.send_message(chat_id=message.chat.id, text="Успех")
     except Exception:
-        logging.critical(msg="func change_task_type - error", exc_info=True)
+        logging.critical(msg="func change_task_set_project - error", exc_info=True)
 
 
-def change_task_set_frequency(message, call_data):
+def change_task_frequency(message, call_data):
     try:
         data = call_data.split()[1]
         with sq.connect(config.database) as con:
@@ -346,7 +342,7 @@ def change_task_set_frequency(message, call_data):
                 inline_keys.append(
                     types.InlineKeyboardButton(
                         text=record[1],
-                        callback_data=f"change_task_choice_frequency {data};{record[0]}"))
+                        callback_data=f"change_task_set_frequency {data};{record[0]}"))
             keyboard = types.InlineKeyboardMarkup()
             keyboard.add(*inline_keys)
         bot.send_message(
@@ -354,10 +350,10 @@ def change_task_set_frequency(message, call_data):
             text="Введи периодичность задачи",
             reply_markup=keyboard)
     except Exception:
-        logging.critical(msg="func change_task_set_frequency - error", exc_info=True)
+        logging.critical(msg="func change_task_frequency - error", exc_info=True)
 
 
-def change_task_frequency(message, call_data):
+def change_task_set_frequency(message, call_data):
     try:
         data = call_data.split()[1].split(";")
         with sq.connect(config.database) as con:
@@ -368,7 +364,7 @@ def change_task_frequency(message, call_data):
             )
         bot.send_message(chat_id=message.chat.id, text="Успех")
     except Exception:
-        logging.critical(msg="func change_task_frequency - error", exc_info=True)
+        logging.critical(msg="func change_task_set_frequency - error", exc_info=True)
 
 
 def change_task_priority(message, call_data):
@@ -526,7 +522,11 @@ def tasks_tomorrow():
                     WHERE project_id = 3
                     AND success = 0
                     AND frequency_id = 5
-                    AND id NOT IN (SELECT task_id FROM routine WHERE date_id = (SELECT id FROM dates WHERE date = date('now')))
+                    AND id NOT IN (
+                        SELECT task_id
+                        FROM routine
+                        WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+                    )
                     ORDER BY priority_id DESC, random()
                     LIMIT 2)
                 UNION
@@ -536,25 +536,30 @@ def tasks_tomorrow():
                     WHERE project_id = (SELECT project_id FROM week_project ORDER BY id DESC LIMIT 1)
                     AND success = 0
                     AND frequency_id = 5
-                    AND id NOT IN (SELECT task_id FROM routine WHERE date_id = (SELECT id FROM dates WHERE date = date('now')))
+                    AND id NOT IN (
+                        SELECT task_id
+                        FROM routine
+                        WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+                    )
                     ORDER BY priority_id DESC, random()
                     LIMIT 8)
                 ORDER BY project_id, priority_id DESC
             """)
-            for result in cur.fetchall():
-                keyboard = types.InlineKeyboardMarkup()
-                keyboard.add(
-                    types.InlineKeyboardButton(
-                        text='Завтра?',
-                        callback_data=f"routine_tomorrow "
-                        f"{result[0]};{date.isoformat()}"
-                    )
+            result = cur.fetchall()
+        for line in result:
+            keyboard = types.InlineKeyboardMarkup()
+            keyboard.add(
+                types.InlineKeyboardButton(
+                    text='Завтра?',
+                    callback_data=f"routine_tomorrow "
+                    f"{line[0]};{date.isoformat()}"
                 )
-                bot.send_message(
-                    config.telegram_my_id,
-                    text=f"{result[0]}: {result[1]}",
-                    reply_markup=keyboard)
-
+            )
+            bot.send_message(
+                config.telegram_my_id,
+                text=f"{line[0]}: {line[1]}",
+                reply_markup=keyboard
+            )
     except Exception:
         logging.error("func tasks_tomorrow - error", exc_info=True)
 
@@ -673,7 +678,10 @@ def add_my_weight(message):
                 """,
                 (weight,)
             )
-        bot.send_message(chat_id=config.telegram_my_id, text=f"goal:{funcs.access_weight()}")
+        bot.send_message(
+            chat_id=config.telegram_my_id,
+            text=f"goal: {round(funcs.access_weight(), 3)}"
+        )
     except Exception:
         logging.error(msg="func add_my_weight - error", exc_info=True)
 
@@ -927,22 +935,22 @@ def task_completed(message):
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
-    if "task_select_field" in call.data:
-        set_task(call.message, call.data)
-    elif "task_select_frequency" in call.data:
-        add_task(call.message, call.data)
+    if "add_task_project" in call.data:
+        add_task_frequency(call.message, call.data)
+    elif "add_task_frequency" in call.data:
+        add_task_text(call.message, call.data)
     elif "routine_set_status" in call.data:
         set_routine_status(call.message, call.data)
     elif "change_task_text" in call.data:
-        change_task_set_text(call.message, call.data)
-    elif "change_task_type" in call.data:
-        change_task_set_type(call.message, call.data)
-    elif "change_task_choice_type" in call.data:
-        change_task_type(call.message, call.data)
+        change_task_text(call.message, call.data)
+    elif "change_task_project" in call.data:
+        change_task_project(call.message, call.data)
+    elif "change_task_set_project" in call.data:
+        change_task_set_project(call.message, call.data)
     elif "change_task_frequency" in call.data:
-        change_task_set_frequency(call.message, call.data)
-    elif "change_task_choice_frequency" in call.data:
         change_task_frequency(call.message, call.data)
+    elif "change_task_set_frequency" in call.data:
+        change_task_set_frequency(call.message, call.data)
     elif "change_task_priority" in call.data:
         change_task_priority(call.message, call.data)
     elif "change_task_set_priority" in call.data:
@@ -953,8 +961,8 @@ def callback_query(call):
         change_task_success(call.message, call.data)
     elif "list_tasks" in call.data:
         list_tasks_view(call.message, call.data)
-    elif "new_type_field_task" in call.data:
-        set_type_field_task(call.message)
+    # elif "new_type_field_task" in call.data:
+    #     set_type_field_task(call.message)
     elif "routine_tomorrow" in call.data:
         add_routine_tomorrow(call.message, call.data)
     elif "routine_week" in call.data:
@@ -968,7 +976,7 @@ def callback_query(call):
 @bot.message_handler(content_types=['text'])
 def take_text(message):
     if message.text.lower() == commands[0].lower():
-        choice_field_type(message)
+        add_task(message)
     elif message.text.lower() == commands[1].lower():
         change_task_set_number(message)
     elif message.text.lower() == commands[2].lower():

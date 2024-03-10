@@ -105,12 +105,12 @@ def get_balance():
     try:
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            # cur.execute("SELECT count() FROM events")
-            # count_events = int(cur.fetchone()[0])
+            cur.execute("SELECT count() FROM events")
+            count_events = cur.fetchone()[0]
             cur.execute("SELECT count() FROM dates WHERE date < date('now')")
-            count_dates = int(cur.fetchone()[0])
+            count_dates = cur.fetchone()[0]
             cur.execute("SELECT count() FROM tasks WHERE success = 1")
-            count_success_tasks = int(cur.fetchone()[0])
+            count_success_tasks = cur.fetchone()[0]
             cur.execute("SELECT count() FROM routine WHERE task_id = 494 AND success = 0")
             bad_thoughts = cur.fetchone()[0]
             cur.execute("SELECT count() FROM routine WHERE task_id = 495 AND success = 0")
@@ -118,7 +118,7 @@ def get_balance():
             cur.execute("SELECT count() FROM routine WHERE task_id = 496 AND success = 0")
             bad_hand = cur.fetchone()[0]
         bad_doing = bad_thoughts + bad_eyes * 2 + bad_hand * 3
-        result = (count_success_tasks + 10) - count_dates - bad_doing
+        result = (count_success_tasks + 15) - count_dates - bad_doing - count_events * 0.1
         return result
     except Exception:
         logging.warning("func count_access - error", exc_info=True)
