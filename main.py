@@ -580,22 +580,81 @@ def add_routine_tomorrow(message, call_data):
 
 def morning_business():
     try:
+        def send_routine(select, text_msg):
+            bot.send_message(
+                config.telegram_my_id,
+                text=f'ЗАДАЧИ С ТИПОМ "{text_msg}":'
+            )
+            for line in select:
+                bot.send_message(
+                    config.telegram_my_id,
+                    text=f"{line[2]};{line[3]};{line[4]}:\n{line[1]}"
+                )
+
         funcs.preparation_emails()
         funcs.info_check_email()
+        bot.send_message(
+            config.telegram_my_id,
+            text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}")
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("""
-                SELECT routine.id, tasks.task, tasks.id
+                SELECT routine.id, tasks.task, tasks.id,
+                projects.field_name, priorities.priority, priorities.id
                 FROM routine
                 JOIN tasks ON routine.task_id = tasks.id
+                JOIN priorities ON priorities.id = tasks.priority_id
+                JOIN projects ON projects.id = tasks.project_id
                 WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+                AND priorities.id = 3
+                ORDER BY priorities.id DESC
             """)
-            result = cur.fetchall()
-        bot.send_message(
-            config.telegram_my_id,
-            text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}\nСегодня у тебя следующие задачи:")
-        for line in result:
-            bot.send_message(config.telegram_my_id, text=f"{line[2]}: {line[1]}")
+            send_routine(cur.fetchall(), "ФУНДАМЕНТАЛЬНЫЙ")
+            cur.execute("""
+                SELECT routine.id, tasks.task, tasks.id,
+                projects.field_name, priorities.priority, priorities.id
+                FROM routine
+                JOIN tasks ON routine.task_id = tasks.id
+                JOIN priorities ON priorities.id = tasks.priority_id
+                JOIN projects ON projects.id = tasks.project_id
+                WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+                AND tasks.project_id = 4
+                AND routine.id NOT IN (
+                    SELECT routine.id
+                    FROM routine
+                    JOIN tasks ON routine.task_id = tasks.id
+                    JOIN priorities ON priorities.id = tasks.priority_id
+                    WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+                    AND priorities.id = 3
+                )
+                ORDER BY priorities.id DESC
+            """)
+            send_routine(cur.fetchall(), "ЗОЖ")
+            cur.execute("""
+                SELECT routine.id, tasks.task, tasks.id,
+                projects.field_name, priorities.priority, priorities.id
+                FROM routine
+                JOIN tasks ON routine.task_id = tasks.id
+                JOIN priorities ON priorities.id = tasks.priority_id
+                JOIN projects ON projects.id = tasks.project_id
+                WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+                AND routine.id NOT IN (
+                    SELECT routine.id FROM routine
+                    JOIN tasks ON routine.task_id = tasks.id
+                    JOIN priorities ON priorities.id = tasks.priority_id
+                    WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+                    AND priorities.id = 3
+                )
+                AND routine.id NOT IN (
+                    SELECT routine.id FROM routine
+                    JOIN tasks ON routine.task_id = tasks.id
+                    JOIN projects ON projects.id = tasks.project_id
+                    WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+                    AND tasks.project_id = 4
+                )
+                ORDER BY priorities.id DESC
+            """)
+            send_routine(cur.fetchall(), "ВЫПОЛНИТЬ")
         msg = bot.send_message(chat_id=config.telegram_my_id, text="Сколько весишь?")
         bot.register_next_step_handler(message=msg, callback=add_my_weight)
     except Exception:
