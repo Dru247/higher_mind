@@ -142,9 +142,7 @@ def access_weight():
             sum_routine = cur.fetchone()[0]
             cur.execute("SELECT weight FROM my_weight ORDER BY id DESC LIMIT 1")
             my_weight = cur.fetchone()[0]
-            cur.execute("SELECT weight FROM lift_weights ORDER BY id DESC LIMIT 1")
-            lift_weight = cur.fetchone()[0]
-        return (90 - my_weight) * 5 + lift_weight + sum_routine
+        return (90 - my_weight) * 10 + sum_routine
     except Exception:
         logging.warning("func access_weight - error", exc_info=True)
 
