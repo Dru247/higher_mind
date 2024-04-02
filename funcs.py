@@ -50,20 +50,22 @@ def check_email(imap_server, email_login, email_password):
             cur = con.cursor()
             cur.execute(f"UPDATE emails SET unseen_status = {len(id_unseen_msgs)} WHERE email = '{email_login}'")
     except Exception:
-        logging.error("func check email - error", exc_info=True)
+        logging.error("func check_email - error", exc_info=True)
 
 
 def info_check_email():
-    with sq.connect(config.database) as con:
-        cur = con.cursor()
-        cur.execute("SELECT email, unseen_status FROM emails")
-        results = cur.fetchall()
+    try:
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute("SELECT email, unseen_status FROM emails")
+            results = cur.fetchall()
+        msg_text = "Письма на почтах:"
         for result in results:
             if result[1] > 0:
-                main.bot.send_message(
-                    config.telegram_my_id,
-                    text=f"На почте {result[0]} есть непрочитанные письма, "
-                    f"в кол-ве {result[1]} шт.")
+                msg_text += f"\n{result[0]}: {result[1]} шт."
+        return msg_text
+    except Exception:
+        logging.error("func info_check_email - error", exc_info=True)
 
 
 def save_logs():
@@ -136,7 +138,7 @@ def access_weight():
                 WHERE routine.success = 1
                 AND date_id IN
                 (SELECT id FROM dates
-                WHERE date >= date('now', '-7 day')
+                WHERE date >= date('now', '-14 day')
                 AND date < date('now'))
             """)
             sum_routine = cur.fetchone()[0]

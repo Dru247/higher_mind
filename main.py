@@ -586,21 +586,15 @@ def add_routine_tomorrow(message, call_data):
 def morning_business():
     try:
         def send_routine(select, text_msg):
-            bot.send_message(
-                config.telegram_my_id,
-                text=f'ЗАДАЧИ С ТИПОМ "{text_msg}":'
-            )
+            msg_text = f'ЗАДАЧИ С ТИПОМ "{text_msg}":'
             for line in select:
-                bot.send_message(
-                    config.telegram_my_id,
-                    text=f"{line[2]};{line[3]};{line[4]}:\n{line[1]}"
-                )
+                msg_text += f"\n{line[2][0]};{line[3][0]}|{line[4][0]}: {line[1]}"
+            bot.send_message(config.telegram_my_id, text=msg_text)
 
         funcs.preparation_emails()
-        funcs.info_check_email()
         bot.send_message(
             config.telegram_my_id,
-            text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}")
+            text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}\n{funcs.info_check_email()}")
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("""
