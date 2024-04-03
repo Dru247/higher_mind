@@ -586,10 +586,13 @@ def add_routine_tomorrow(message, call_data):
 def morning_business():
     try:
         def send_routine(select, text_msg):
-            msg_text = f'ЗАДАЧИ С ТИПОМ "{text_msg}":'
-            for line in select:
-                msg_text += f"\n{line[2][0]};{line[3][0]}|{line[4][0]}: {line[1]}"
-            bot.send_message(config.telegram_my_id, text=msg_text)
+            try:
+                msg_text = f'ЗАДАЧИ С ТИПОМ "{text_msg}":'
+                for line in select:
+                    msg_text += f"\n{line[2]};{line[3][0]}|{line[4][0]}: {line[1]}"
+                bot.send_message(config.telegram_my_id, text=msg_text)
+            except Exception:
+                logging.error(msg="func morning_business,send_routine - error", exc_info=True)
 
         funcs.preparation_emails()
         bot.send_message(
