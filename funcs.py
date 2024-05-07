@@ -105,12 +105,11 @@ def socket_client(data_send, server=config.socket_server, port=config.socket_por
 
 def get_balance():
     try:
+        plan_task = 3
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("SELECT count() FROM events")
             count_events = cur.fetchone()[0]
-            cur.execute("SELECT count() FROM dates WHERE date < date('now')")
-            count_dates = cur.fetchone()[0]
             cur.execute("SELECT count() FROM tasks WHERE success = 1")
             count_success_tasks = cur.fetchone()[0]
             cur.execute("SELECT count() FROM routine WHERE task_id = 494 AND success = 0")
@@ -120,7 +119,7 @@ def get_balance():
             cur.execute("SELECT count() FROM routine WHERE task_id = 496 AND success = 0")
             bad_hand = cur.fetchone()[0]
         bad_doing = bad_thoughts + bad_eyes + bad_hand
-        result = count_success_tasks - count_dates / 2 - bad_doing - count_events
+        result = count_success_tasks / plan_task - bad_doing - count_events
         return result
     except Exception:
         logging.warning("func count_access - error", exc_info=True)
