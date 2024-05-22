@@ -867,10 +867,10 @@ def search_add(message, call_data):
 
             def choice_prof_later(message):
                 try:
-                    number_pr = message.text.strip()[1]
+                    number_pr = message.text
                     keyboard = types.InlineKeyboardMarkup()
                     keys = [
-                        ("1w.", f"emailer_add choice_prof_later {number_pr} 0"),
+                        ("1w", f"emailer_add choice_prof_later {number_pr} 0"),
                         ("1m", f"emailer_add choice_prof_later {number_pr} 1"),
                         ("3m", f"emailer_add choice_prof_later {number_pr} 2")
                     ]
