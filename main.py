@@ -864,16 +864,31 @@ def search_add(message, call_data):
             bot.register_next_step_handler(message=msg, callback=check_peo_prof)
 
         elif data == "prof_later":
-            def check_prof_later(message):
-                data_msg = message.text.strip()
-                prof, months = data_msg.split(";")
-                if len(prof) == 6 and months.isdigit() and prof.isdigit():
-                    funcs.socket_client(data_send=f"{data}: {data_msg}")
-                else:
-                    bot.send_message(chat_id=message.chat.id, text="Error")
 
-            msg = bot.send_message(chat_id=message.chat.id, text="Введи number_prof;months")
-            bot.register_next_step_handler(message=msg, callback=check_prof_later)
+            def choice_prof_later(message):
+                try:
+                    number_pr = message.text.strip()[1]
+                    keyboard = types.InlineKeyboardMarkup()
+                    keys = [
+                        ("1w.", f"emailer_add choice_prof_later {number_pr} 0"),
+                        ("1m", f"emailer_add choice_prof_later {number_pr} 1"),
+                        ("3m", f"emailer_add choice_prof_later {number_pr} 2")
+                    ]
+                    keyboard.add(*[types.InlineKeyboardButton(text=key[0], callback_data=key[1]) for key in keys])
+                    bot.send_message(
+                        message.chat.id,
+                        text="Time",
+                        reply_markup=keyboard
+                    )
+                except Exception:
+                    logging.critical(msg="func choice_prof_later - error", exc_info=True)
+
+            msg = bot.send_message(chat_id=message.chat.id, text="Введи number_prof")
+            bot.register_next_step_handler(message=msg, callback=choice_prof_later)
+
+        elif data == "choice_prof_later":
+            prof, time_msg = call_data.split()[2:]
+            funcs.socket_client(data_send=f"prof_later: {prof};{time_msg}")
 
     except Exception:
         logging.critical("func 'search_add' - error", exc_info=True)
