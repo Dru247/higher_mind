@@ -113,17 +113,15 @@ def get_balance():
             count_events = cur.fetchone()[0]
             cur.execute("SELECT count() FROM tasks WHERE success = 1")
             count_success_tasks = cur.fetchone()[0]
-            cur.execute("SELECT count() FROM routine WHERE task_id = 495 AND success = 0")
-            bad_eyes = cur.fetchone()[0]
-            cur.execute("SELECT count() FROM routine WHERE task_id = 496 AND success = 0")
-            bad_hand = cur.fetchone()[0]
+            cur.execute("SELECT count() FROM routine WHERE task_id IN (495, 496) AND success = 0")
+            bad_doing = cur.fetchone()[0]
             cur.execute("SELECT count() FROM routine WHERE success = 1")
             success_routines = cur.fetchone()[0]
-        result = count_success_tasks + (success_routines * plan_routine) - ((bad_eyes + bad_hand + count_events) * plan_task)
+        result = count_success_tasks + (success_routines * plan_routine) - ((bad_doing + count_events) * plan_task)
         logging.info(f"func count_access; balance = {result}")
         return result
     except Exception:
-        logging.warning("func count_access - error", exc_info=True)
+        logging.warning("func get_balance - error", exc_info=True)
 
 
 def access_weight():
