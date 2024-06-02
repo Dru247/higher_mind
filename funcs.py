@@ -105,7 +105,8 @@ def socket_client(data_send, server=config.socket_server, port=config.socket_por
 
 def get_balance():
     try:
-        plan_task = 3
+        plan_task = 7
+        plan_routine = 0.1
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("SELECT count() FROM events")
@@ -118,8 +119,11 @@ def get_balance():
             bad_eyes = cur.fetchone()[0]
             cur.execute("SELECT count() FROM routine WHERE task_id = 496 AND success = 0")
             bad_hand = cur.fetchone()[0]
+            cur.execute("SELECT count() FROM routine WHERE success = 1")
+            success_routines = cur.fetchone()[0]
         bad_doing = bad_thoughts + bad_eyes + bad_hand
-        result = count_success_tasks / plan_task - bad_doing - count_events
+        result = count_success_tasks + (success_routines * plan_routine) - bad_doing - (count_events * plan_task)
+        logging.info(f"func count_access; balance = {result}")
         return result
     except Exception:
         logging.warning("func count_access - error", exc_info=True)
@@ -153,7 +157,13 @@ def get_temperature():
         city = "Москва"
         url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&units=metric&lang=ru&appid=79d1ca96933b0328e1c7e3e7a26cb347"
         weather_data = requests.get(url).json()
-        temperature = weather_data["main"]["temp_max"]
-        return temperature
+        temps = list()
+        date_now = datetime.datetime.now().date()
+        for weather in weather_data["list"]:
+            weather_date = datetime.datetime.fromisoformat(weather["dt_txt"]).date()
+            if date_now == weather_date:
+                temps.append(float(weather["main"]["temp_max"]))
+
+        return min(temps), max(temps)
     except Exception:
-        logging.warning("func get_temperature - error", exc_info=True)
+        logging.warning("func get_temperature_date - error", exc_info=True)

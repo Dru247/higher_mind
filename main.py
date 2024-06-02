@@ -595,9 +595,10 @@ def morning_business():
                 logging.error(msg="func morning_business,send_routine - error", exc_info=True)
 
         funcs.preparation_emails()
+        temp = funcs.get_temperature()
         bot.send_message(
             config.telegram_my_id,
-            text=f"Баланс: {funcs.get_balance()}\nТемпература: {funcs.get_temperature()}\n{funcs.info_check_email()}")
+            text=f"Баланс: {funcs.get_balance()}\nТемпература min: {temp[0]}\nТемпература max: {temp[1]}\n{funcs.info_check_email()}")
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("""
@@ -818,7 +819,8 @@ def access_check(message, call_data):
             with sq.connect(config.database) as con:
                 cur = con.cursor()
                 cur.execute("INSERT INTO events (event) VALUES (1)")
-                temp = funcs.get_temperature()
+                # need to del temp
+                temp = 1
                 all_weight = funcs.access_weight()
                 funcs.socket_client(data_send=f"{call_data.split()[1]};{temp};{int(all_weight)}")
             bot.send_message(
