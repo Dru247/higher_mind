@@ -780,7 +780,7 @@ def add_date():
                     """)
         if week_day == 6:
             planning_week()
-            funcs.save_logs()
+            # funcs.save_logs()
     except Exception:
         logging.error("func add_date - error", exc_info=True)
 

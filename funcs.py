@@ -161,4 +161,4 @@ def get_temperature():
 
         return min(temps), max(temps)
     except Exception:
-        logging.warning("func get_temperature_date - error", exc_info=True)
+        logging.warning("func get_temperature - error", exc_info=True)
