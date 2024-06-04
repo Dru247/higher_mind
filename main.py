@@ -595,10 +595,11 @@ def morning_business():
                 logging.error(msg="func morning_business,send_routine - error", exc_info=True)
 
         funcs.preparation_emails()
-        temp = funcs.get_temperature()
+        # temp = funcs.get_temperature()
         bot.send_message(
             config.telegram_my_id,
-            text=f"Баланс: {funcs.get_balance()}\nТемпература min: {temp[0]}\nТемпература max: {temp[1]}\n{funcs.info_check_email()}")
+            text=f"Баланс: {funcs.get_balance()}\n{funcs.info_check_email()}")
+        # text=f"Баланс: {funcs.get_balance()}\nТемпература min: {temp[0]}\nТемпература max: {temp[1]}\n{funcs.info_check_email()}")
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("""

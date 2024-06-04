@@ -154,6 +154,7 @@ def get_temperature():
         weather_data = requests.get(url).json()
         temps = list()
         date_now = datetime.datetime.now().date()
+        logging.info(f"func get_temperature - {weather_data}")
         for weather in weather_data["list"]:
             weather_date = datetime.datetime.fromisoformat(weather["dt_txt"]).date()
             if date_now == weather_date:
