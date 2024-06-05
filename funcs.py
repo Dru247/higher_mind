@@ -124,33 +124,11 @@ def get_balance():
         logging.warning("func get_balance - error", exc_info=True)
 
 
-def access_weight():
-    try:
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            cur.execute("""
-                SELECT sum(priorities.grade)
-                FROM routine
-                JOIN tasks ON tasks.id = routine.task_id
-                JOIN priorities ON priorities.id = tasks.priority_id
-                WHERE routine.success = 1
-                AND date_id IN
-                (SELECT id FROM dates
-                WHERE date >= date('now', '-14 day')
-                AND date < date('now'))
-            """)
-            sum_routine = cur.fetchone()[0]
-            cur.execute("SELECT weight FROM my_weight ORDER BY id DESC LIMIT 1")
-            my_weight = cur.fetchone()[0]
-        return (90 - my_weight) * 10 + sum_routine
-    except Exception:
-        logging.warning("func access_weight - error", exc_info=True)
-
-
 def get_temperature():
     try:
-        city = "Москва"
-        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&units=metric&lang=ru&appid=79d1ca96933b0328e1c7e3e7a26cb347"
+        lat = 55.7522
+        lon = 37.6156
+        url = f"https://api.openweathermap.org/data/2.5/forecast?lat={lat}&lon={lon}&appid=79d1ca96933b0328e1c7e3e7a26cb347&units=metric"
         weather_data = requests.get(url).json()
         temps = list()
         date_now = datetime.datetime.now().date()

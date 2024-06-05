@@ -595,11 +595,11 @@ def morning_business():
                 logging.error(msg="func morning_business,send_routine - error", exc_info=True)
 
         funcs.preparation_emails()
-        # temp = funcs.get_temperature()
+        temp = funcs.get_temperature()
         bot.send_message(
             config.telegram_my_id,
-            text=f"Баланс: {funcs.get_balance()}\n{funcs.info_check_email()}")
-        # text=f"Баланс: {funcs.get_balance()}\nТемпература min: {temp[0]}\nТемпература max: {temp[1]}\n{funcs.info_check_email()}")
+            # text=f"Баланс: {funcs.get_balance()}\n{funcs.info_check_email()}")
+            text=f"Баланс: {funcs.get_balance()}\nТемпература min: {temp[0]}\nТемпература max: {temp[1]}\n{funcs.info_check_email()}")
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("""
@@ -679,7 +679,7 @@ def add_my_weight(message):
             )
         bot.send_message(
             chat_id=config.telegram_my_id,
-            text=f"goal: {round(funcs.access_weight(), 3)}"
+            text="OK"
         )
     except Exception:
         logging.error(msg="func add_my_weight - error", exc_info=True)
@@ -798,7 +798,7 @@ def planning_day():
 def schedule_main():
     try:
         schedule.every().day.at(
-            "05:30",
+            "17:20",
             timezone(config.timezone_my)
             ).do(morning_business)
         schedule.every().day.at(
@@ -820,13 +820,10 @@ def access_check(message, call_data):
             with sq.connect(config.database) as con:
                 cur = con.cursor()
                 cur.execute("INSERT INTO events (event) VALUES (1)")
-                # need to del temp
-                temp = 1
-                all_weight = funcs.access_weight()
-                funcs.socket_client(data_send=f"{call_data.split()[1]};{temp};{int(all_weight)}")
+            funcs.socket_client(data_send=call_data.split()[1])
             bot.send_message(
                 message.chat.id,
-                text=f"Допуск получен:\nбаланс: {balance}\nWeight: {round(all_weight, 2)}")
+                text=f"Допуск получен:\nбаланс: {balance}")
         else:
             bot.send_message(
                 message.chat.id,
@@ -849,7 +846,7 @@ def search_add(message, call_data):
             funcs.socket_client(data_send="view_people_prof")
             msg = bot.send_message(
                 chat_id=message.chat.id,
-                text="Введи данные в формате (5) ID_Peo;Dat;Count;Temp;Dist(0/1)"
+                text="Введи данные в формате (5) ID_Peo;Dat;Count;Dist(0/1)"
             )
             bot.register_next_step_handler(message=msg, callback=check_event)
 
