@@ -920,25 +920,28 @@ def task_completed(message):
         text="Search",
         callback_data='search search;0')
     key_2 = types.InlineKeyboardButton(
-        text="Search_a",
-        callback_data='search search;1')
-    key_3 = types.InlineKeyboardButton(
         text="Search_m",
         callback_data='search mass')
+    key_3 = types.InlineKeyboardButton(
+        text="Search_o",
+        callback_data='search old')
     key_4 = types.InlineKeyboardButton(
+        text="Search_a",
+        callback_data='search search;1')
+    key_5 = types.InlineKeyboardButton(
         text="Email",
         callback_data='search email')
-    key_5 = types.InlineKeyboardButton(
+    key_6 = types.InlineKeyboardButton(
         text="Add ev",
         callback_data='emailer_add event')
-    key_6 = types.InlineKeyboardButton(
+    key_7 = types.InlineKeyboardButton(
         text="Add p_pr",
         callback_data='emailer_add peo_prof')
-    key_7 = types.InlineKeyboardButton(
+    key_8 = types.InlineKeyboardButton(
         text="Pr later",
         callback_data='emailer_add prof_later')
 
-    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7)
+    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7, key_8)
     bot.send_message(
         message.from_user.id,
         text="What we will do?",
