@@ -835,22 +835,8 @@ def access_check(message, call_data):
 def search_add(message, call_data):
     try:
         data = call_data.split()[1]
-        if data == "event":
-            def check_event(message):
-                data_msg = message.text.strip()
-                if len(data_msg.split(";")) == 5:
-                    funcs.socket_client(data_send=f"{data}: {data_msg}")
-                else:
-                    bot.send_message(chat_id=message.chat.id, text="Error")
 
-            funcs.socket_client(data_send="view_people_prof")
-            msg = bot.send_message(
-                chat_id=message.chat.id,
-                text="Введи данные в формате (5) ID_Peo;Dat;Count;Dist(0/1)"
-            )
-            bot.register_next_step_handler(message=msg, callback=check_event)
-
-        elif data == "peo_prof":
+        if data == "peo_prof":
             def check_peo_prof(message):
                 data_msg = message.text.strip()
                 data_check = data_msg.split(";")
@@ -932,16 +918,13 @@ def task_completed(message):
         text="Email",
         callback_data='search email')
     key_6 = types.InlineKeyboardButton(
-        text="Add ev",
-        callback_data='emailer_add event')
-    key_7 = types.InlineKeyboardButton(
         text="Add p_pr",
         callback_data='emailer_add peo_prof')
-    key_8 = types.InlineKeyboardButton(
+    key_7 = types.InlineKeyboardButton(
         text="Pr later",
         callback_data='emailer_add prof_later')
 
-    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7, key_8)
+    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7)
     bot.send_message(
         message.from_user.id,
         text="What we will do?",
