@@ -64,7 +64,7 @@ def routine_check():
                 SELECT routine.id, tasks.task, tasks.id, tasks.frequency_id
                 FROM routine
                 JOIN tasks ON routine.task_id = tasks.id
-                WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+                WHERE date_id = (SELECT id FROM dates WHERE date = date('now','-1 day'))
                 AND routine.success = 0
                 AND task_id != ?
                 """,
@@ -594,6 +594,7 @@ def morning_business():
             except Exception:
                 logging.error(msg="func morning_business,send_routine - error", exc_info=True)
 
+        routine_check()
         funcs.preparation_emails()
         temp = funcs.get_temperature()
         bot.send_message(
@@ -789,7 +790,6 @@ def add_date():
 def planning_day():
     try:
         add_date()
-        routine_check()
         tasks_tomorrow()
     except Exception:
         logging.error("func planning_day - error", exc_info=True)
