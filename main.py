@@ -856,7 +856,7 @@ def search_add(message, call_data):
                     number_pr = message.text
                     keyboard = types.InlineKeyboardMarkup()
                     keys = [
-                        ("1w", f"emailer_add choice_prof_later {number_pr} 0"),
+                        # ("1w", f"emailer_add choice_prof_later {number_pr} 0"),
                         ("1m", f"emailer_add choice_prof_later {number_pr} 1"),
                         ("3m", f"emailer_add choice_prof_later {number_pr} 2")
                     ]
@@ -914,9 +914,9 @@ def task_completed(message):
     key_4 = types.InlineKeyboardButton(
         text="Search_a",
         callback_data='search search;1')
-    key_5 = types.InlineKeyboardButton(
-        text="Email",
-        callback_data='search email')
+    # key_5 = types.InlineKeyboardButton(
+    #     text="Email",
+    #     callback_data='search email')
     key_6 = types.InlineKeyboardButton(
         text="Add p_pr",
         callback_data='emailer_add peo_prof')
@@ -924,7 +924,7 @@ def task_completed(message):
         text="Pr later",
         callback_data='emailer_add prof_later')
 
-    keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6, key_7)
+    keyboard.add(key_1, key_2, key_3, key_4, key_6, key_7)
     bot.send_message(
         message.from_user.id,
         text="What we will do?",
