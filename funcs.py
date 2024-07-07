@@ -106,7 +106,7 @@ def socket_client(data_send, server=config.socket_server, port=config.socket_por
 def get_balance():
     try:
         plan_task = 5
-        plan_routine = 0.1
+        plan_routine = 0.2
         with sq.connect(config.database) as con:
             cur = con.cursor()
             cur.execute("SELECT count() FROM events")
