@@ -815,19 +815,52 @@ def schedule_main():
 
 def access_check(message, call_data):
     try:
-        balance = funcs.get_balance()
-        if balance >= 1:
+        week_now = datetime.datetime.now().isocalendar()[1]
+        with sq.connect(config.database) as con:
+            cur = con.cursor()
+            cur.execute("SELECT datetime FROM events ORDER BY id DESC LIMIT 1")
+            last_date = cur.fetchone()[0]
+            cur.execute(
+                """
+                SELECT * FROM (
+                    SELECT dates.date FROM routine
+                    JOIN dates ON routine.date_id = dates.id
+                    WHERE routine.task_id = 495
+                    AND dates.date != date('now')
+                    AND routine.success = 0
+                    ORDER BY routine.id DESC
+                    LIMIT 1
+                )
+                UNION
+                SELECT * FROM (
+                    SELECT dates.date FROM routine
+                    JOIN dates ON routine.date_id = dates.id
+                    WHERE routine.task_id = 496
+                    AND dates.date != date('now')
+                    AND routine.success = 0
+                    ORDER BY routine.id DESC
+                    LIMIT 1
+                )
+                """
+                )
+            result = cur.fetchall()
+        bad_weeks = [datetime.datetime.fromisoformat(date[0]).isocalendar()[1] for date in result]
+        last_week = datetime.datetime.fromisoformat(last_date).isocalendar()[1]
+        logging.info(
+            f"access_check(): week_now: {week_now}, event_week: {last_week}, bad_week: {bad_weeks}"
+        )
+        if (week_now != last_week) and (week_now not in bad_weeks) and (week_now-1 not in bad_weeks):
             with sq.connect(config.database) as con:
                 cur = con.cursor()
                 cur.execute("INSERT INTO events (event) VALUES (1)")
             funcs.socket_client(data_send=call_data.split()[1])
             bot.send_message(
                 message.chat.id,
-                text=f"Допуск получен:\nбаланс: {balance}")
+                text=f"Допуск получен")
         else:
             bot.send_message(
                 message.chat.id,
-                text=f"Допуск НЕ получен:\nбаланс: {balance}")
+                text=f"Допуск НЕ получен")
     except Exception:
         logging.warning(msg="func access_check - error", exc_info=True)
 
@@ -856,7 +889,6 @@ def search_add(message, call_data):
                     number_pr = message.text
                     keyboard = types.InlineKeyboardMarkup()
                     keys = [
-                        # ("1w", f"emailer_add choice_prof_later {number_pr} 0"),
                         ("1m", f"emailer_add choice_prof_later {number_pr} 1"),
                         ("3m", f"emailer_add choice_prof_later {number_pr} 2")
                     ]
@@ -904,20 +936,14 @@ def task_completed(message):
     keyboard = types.InlineKeyboardMarkup()
     key_1 = types.InlineKeyboardButton(
         text="Search",
-        callback_data='search search;0')
+        callback_data='search search')
     key_2 = types.InlineKeyboardButton(
-        text="Search_o",
-        callback_data='search old')
-    key_3 = types.InlineKeyboardButton(
-        text="Search_a",
-        callback_data='search search;1')
-    key_4 = types.InlineKeyboardButton(
-        text="Add p_pr",
+        text="p_pr",
         callback_data='emailer_add peo_prof')
-    key_5 = types.InlineKeyboardButton(
-        text="Pr later",
+    key_3 = types.InlineKeyboardButton(
+        text="pr_later",
         callback_data='emailer_add prof_later')
-    keyboard.add(key_1, key_2, key_3, key_4, key_5)
+    keyboard.add(key_1, key_2, key_3)
     bot.send_message(
         message.from_user.id,
         text="What we will do?",
