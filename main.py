@@ -260,11 +260,11 @@ def change_task_set_field(message):
         key_5 = types.InlineKeyboardButton(
             text="Удалить",
             callback_data=f"change_task_remove {message.text}")
-        # key_6 = types.InlineKeyboardButton(
-        #     text="Выполнить",
-        #     callback_data=f"change_task_success {message.text}")
+        key_6 = types.InlineKeyboardButton(
+            text="Выполнить",
+            callback_data=f"change_task_success {message.text}")
         keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(key_1, key_2, key_3, key_4, key_5)
+        keyboard.add(key_1, key_2, key_3, key_4, key_5, key_6)
         bot.send_message(
             chat_id=message.chat.id,
             text="Что меняем?",
@@ -412,12 +412,15 @@ def change_task_remove(message, call_data):
         data = call_data.split()[1]
         with sq.connect(config.database) as con:
             cur = con.cursor()
-            cur.execute(f"DELETE FROM tasks WHERE id = '{data}'")
+            cur.execute(
+                'DELETE FROM tasks WHERE id = ?',
+                (data,)
+            )
         bot.send_message(
             chat_id=message.chat.id,
             text=f"Задача №{data} удалена")
-    except Exception:
-        logging.critical(msg="func change_task_remove - error", exc_info=True)
+    except Exception as err:
+        logging.critical(msg="func change_task_remove - error", exc_info=err)
 
 
 def change_task_success(message, call_data):
@@ -432,8 +435,8 @@ def change_task_success(message, call_data):
         bot.send_message(
             chat_id=message.chat.id,
             text=f"Задача №{task_id} выполнена")
-    except Exception:
-        logging.critical(msg="func change_task_success - error", exc_info=True)
+    except Exception as err:
+        logging.critical(msg="func change_task_success - error", exc_info=err)
 
 
 def list_tasks(message):
@@ -783,16 +786,16 @@ def add_date():
         if week_day == 6:
             planning_week()
             # funcs.save_logs()
-    except Exception:
-        logging.error("func add_date - error", exc_info=True)
+    except Exception as err:
+        logging.error("func add_date - error", exc_info=err)
 
 
 def planning_day():
     try:
         add_date()
         tasks_tomorrow()
-    except Exception:
-        logging.error("func planning_day - error", exc_info=True)
+    except Exception as err:
+        logging.error("func planning_day - error", exc_info=err)
 
 
 def schedule_main():
@@ -809,8 +812,8 @@ def schedule_main():
         while True:
             schedule.run_pending()
             time.sleep(1)
-    except Exception:
-        logging.error("func schedule_main - error", exc_info=True)
+    except Exception as err:
+        logging.error("func schedule_main - error", exc_info=err)
 
 
 def access_check(message, call_data):
@@ -874,8 +877,8 @@ def access_check(message, call_data):
             #     bot.send_message(
             #         message.chat.id,
             #         text=f"Допуск НЕ получен")
-    except Exception:
-        logging.warning(msg="func access_check - error", exc_info=True)
+    except Exception as err:
+        logging.warning(msg="func access_check - error", exc_info=err)
 
 
 def search_add(message, call_data):
