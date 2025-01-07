@@ -905,8 +905,8 @@ def search_add(message, call_data):
                     number_pr = message.text
                     keyboard = types.InlineKeyboardMarkup()
                     keys = [
-                        ("1m", f"emailer_add choice_prof_later {number_pr} 1"),
-                        ("3m", f"emailer_add choice_prof_later {number_pr} 2")
+                        ("3m", f"emailer_add choice_prof_later {number_pr} 1"),
+                        ("1y", f"emailer_add choice_prof_later {number_pr} 2")
                     ]
                     keyboard.add(*[types.InlineKeyboardButton(text=key[0], callback_data=key[1]) for key in keys])
                     bot.send_message(
@@ -914,8 +914,8 @@ def search_add(message, call_data):
                         text="Time",
                         reply_markup=keyboard
                     )
-                except Exception:
-                    logging.critical(msg="func choice_prof_later - error", exc_info=True)
+                except Exception as err:
+                    logging.critical(msg="func choice_prof_later - error", exc_info=err)
 
             msg = bot.send_message(chat_id=message.chat.id, text="Введи number_prof")
             bot.register_next_step_handler(message=msg, callback=choice_prof_later)
