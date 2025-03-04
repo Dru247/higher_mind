@@ -588,85 +588,85 @@ def add_routine_tomorrow(message, call_data):
 
 def morning_business():
     try:
-        def send_routine(select, text_msg):
-            try:
-                msg_text = f'ЗАДАЧИ С ТИПОМ "{text_msg}":'
-                for line in select:
-                    msg_text += f"\n{line[2]};{line[3][0]}|{line[4][0]}: {line[1]}"
-                bot.send_message(config.telegram_my_id, text=msg_text)
-            except Exception:
-                logging.error(msg="func morning_business,send_routine - error", exc_info=True)
+        # def send_routine(select, text_msg):
+        #     try:
+        #         msg_text = f'ЗАДАЧИ С ТИПОМ "{text_msg}":'
+        #         for line in select:
+        #             msg_text += f"\n{line[2]};{line[3][0]}|{line[4][0]}: {line[1]}"
+        #         bot.send_message(config.telegram_my_id, text=msg_text)
+        #     except Exception:
+        #         logging.error(msg="func morning_business,send_routine - error", exc_info=True)
 
-        routine_check()
+        # routine_check()
         funcs.preparation_emails()
         temp = funcs.get_temperature()
         bot.send_message(
             config.telegram_my_id,
             # text=f"Баланс: {funcs.get_balance()}\n{funcs.info_check_email()}")
-            text=f"Баланс: {funcs.get_balance()}\nТемпература min: {temp[0]}\nТемпература max: {temp[1]}\n{funcs.info_check_email()}")
-        with sq.connect(config.database) as con:
-            cur = con.cursor()
-            cur.execute("""
-                SELECT routine.id, tasks.task, tasks.id,
-                projects.field_name, priorities.priority, priorities.id
-                FROM routine
-                JOIN tasks ON routine.task_id = tasks.id
-                JOIN priorities ON priorities.id = tasks.priority_id
-                JOIN projects ON projects.id = tasks.project_id
-                WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
-                AND priorities.id = 3
-                ORDER BY priorities.id DESC
-            """)
-            send_routine(cur.fetchall(), "ФУНДАМЕНТАЛЬНЫЙ")
-            cur.execute("""
-                SELECT routine.id, tasks.task, tasks.id,
-                projects.field_name, priorities.priority, priorities.id
-                FROM routine
-                JOIN tasks ON routine.task_id = tasks.id
-                JOIN priorities ON priorities.id = tasks.priority_id
-                JOIN projects ON projects.id = tasks.project_id
-                WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
-                AND tasks.project_id = 4
-                AND routine.id NOT IN (
-                    SELECT routine.id
-                    FROM routine
-                    JOIN tasks ON routine.task_id = tasks.id
-                    JOIN priorities ON priorities.id = tasks.priority_id
-                    WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
-                    AND priorities.id = 3
-                )
-                ORDER BY priorities.id DESC
-            """)
-            send_routine(cur.fetchall(), "ЗОЖ")
-            cur.execute("""
-                SELECT routine.id, tasks.task, tasks.id,
-                projects.field_name, priorities.priority, priorities.id
-                FROM routine
-                JOIN tasks ON routine.task_id = tasks.id
-                JOIN priorities ON priorities.id = tasks.priority_id
-                JOIN projects ON projects.id = tasks.project_id
-                WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
-                AND routine.id NOT IN (
-                    SELECT routine.id FROM routine
-                    JOIN tasks ON routine.task_id = tasks.id
-                    JOIN priorities ON priorities.id = tasks.priority_id
-                    WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
-                    AND priorities.id = 3
-                )
-                AND routine.id NOT IN (
-                    SELECT routine.id FROM routine
-                    JOIN tasks ON routine.task_id = tasks.id
-                    JOIN projects ON projects.id = tasks.project_id
-                    WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
-                    AND tasks.project_id = 4
-                )
-                ORDER BY priorities.id DESC
-            """)
-            send_routine(cur.fetchall(), "ВЫПОЛНИТЬ")
+            text=f'Температура min: {temp[0]}\nТемпература max: {temp[1]}\n{funcs.info_check_email()}')
+        # with sq.connect(config.database) as con:
+        #     cur = con.cursor()
+        #     cur.execute("""
+        #         SELECT routine.id, tasks.task, tasks.id,
+        #         projects.field_name, priorities.priority, priorities.id
+        #         FROM routine
+        #         JOIN tasks ON routine.task_id = tasks.id
+        #         JOIN priorities ON priorities.id = tasks.priority_id
+        #         JOIN projects ON projects.id = tasks.project_id
+        #         WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+        #         AND priorities.id = 3
+        #         ORDER BY priorities.id DESC
+        #     """)
+        #     send_routine(cur.fetchall(), "ФУНДАМЕНТАЛЬНЫЙ")
+        #     cur.execute("""
+        #         SELECT routine.id, tasks.task, tasks.id,
+        #         projects.field_name, priorities.priority, priorities.id
+        #         FROM routine
+        #         JOIN tasks ON routine.task_id = tasks.id
+        #         JOIN priorities ON priorities.id = tasks.priority_id
+        #         JOIN projects ON projects.id = tasks.project_id
+        #         WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+        #         AND tasks.project_id = 4
+        #         AND routine.id NOT IN (
+        #             SELECT routine.id
+        #             FROM routine
+        #             JOIN tasks ON routine.task_id = tasks.id
+        #             JOIN priorities ON priorities.id = tasks.priority_id
+        #             WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+        #             AND priorities.id = 3
+        #         )
+        #         ORDER BY priorities.id DESC
+        #     """)
+        #     send_routine(cur.fetchall(), "ЗОЖ")
+        #     cur.execute("""
+        #         SELECT routine.id, tasks.task, tasks.id,
+        #         projects.field_name, priorities.priority, priorities.id
+        #         FROM routine
+        #         JOIN tasks ON routine.task_id = tasks.id
+        #         JOIN priorities ON priorities.id = tasks.priority_id
+        #         JOIN projects ON projects.id = tasks.project_id
+        #         WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+        #         AND routine.id NOT IN (
+        #             SELECT routine.id FROM routine
+        #             JOIN tasks ON routine.task_id = tasks.id
+        #             JOIN priorities ON priorities.id = tasks.priority_id
+        #             WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+        #             AND priorities.id = 3
+        #         )
+        #         AND routine.id NOT IN (
+        #             SELECT routine.id FROM routine
+        #             JOIN tasks ON routine.task_id = tasks.id
+        #             JOIN projects ON projects.id = tasks.project_id
+        #             WHERE date_id = (SELECT id FROM dates WHERE date = date('now'))
+        #             AND tasks.project_id = 4
+        #         )
+        #         ORDER BY priorities.id DESC
+        #     """)
+        #     send_routine(cur.fetchall(), "ВЫПОЛНИТЬ")
         msg = bot.send_message(chat_id=config.telegram_my_id, text="Сколько весишь?")
         bot.register_next_step_handler(message=msg, callback=add_my_weight)
-    except Exception:
-        logging.error(msg="func morning_business - error", exc_info=True)
+    except Exception as err:
+        logging.error(msg='func morning_business - error', exc_info=err)
 
 
 def add_my_weight(message):
@@ -801,13 +801,13 @@ def planning_day():
 def schedule_main():
     try:
         schedule.every().day.at(
-            "05:30",
+            '06:30',
             timezone(config.timezone_my)
             ).do(morning_business)
-        schedule.every().day.at(
-            "21:00",
-            timezone(config.timezone_my)
-            ).do(planning_day)
+        # schedule.every().day.at(
+        #     '21:00',
+        #     timezone(config.timezone_my)
+        #     ).do(planning_day)
 
         while True:
             schedule.run_pending()
@@ -905,8 +905,8 @@ def search_add(message, call_data):
                     number_pr = message.text
                     keyboard = types.InlineKeyboardMarkup()
                     keys = [
-                        ("3m", f"emailer_add choice_prof_later {number_pr} 1"),
-                        ("1y", f"emailer_add choice_prof_later {number_pr} 2")
+                        ("3m", f"emailer_add choice_prof_later {number_pr} 3"),
+                        ("1y", f"emailer_add choice_prof_later {number_pr} 12")
                     ]
                     keyboard.add(*[types.InlineKeyboardButton(text=key[0], callback_data=key[1]) for key in keys])
                     bot.send_message(
